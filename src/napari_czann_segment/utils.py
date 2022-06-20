@@ -43,8 +43,8 @@ def check_file(file_path: os.PathLike) -> None:
 
 def get_fname_woext(file_path: str) -> Tuple[str, str]:
     """Get the complete path of a file without the extension
-    It also will works for extensions like c:\myfile.abc.xyz
-    The output will be: c:\myfile
+    It also will works for extensions like myfile.abc.xyz
+    The output will be: myfile
 
     :param filepath: complete fiepath
     :type filepath: str
@@ -63,3 +63,14 @@ def get_fname_woext(file_path: str) -> Tuple[str, str]:
     filepath_woext = file_path.replace(real_extension, '')
 
     return filepath_woext, real_extension
+
+
+def get_rectangle_from_image(x: int, y: int, sizex: int, sizey: int) -> NamedTuple("Rectangle", [("x", int), ("y", int), ("w", int), ("h", int)]):
+
+    Rectangle = NamedTuple("Rectangle", [("x", int), ("y", int), ("w", int), ("h", int)])
+    rt = Rectangle(x=x,
+                   y=y,
+                   w=sizex,
+                   h=sizey)
+
+    return rt

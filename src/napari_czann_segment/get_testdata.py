@@ -35,19 +35,19 @@ def get_modelfile(name_czann: str = "PGC_nucleus_detector.czann") -> str:
     return czann_file
 
 
-def get_czifile(name_czi: str = "PGC_10x_S02.czi") -> str:
-    """Function to get the path of a CZI for testing. Lower and upper case are important.
+def get_imagefile(name_imagefile: str = "PGC_10x_S02.czi") -> str:
+    """Function to get the path of a *.czi or *.ome.tiff for testing. Lower and upper case are important.
 
     Args:
-        name_czi (str, optional): Name of the CZI file. Defaults to "PGC_10x_S02.czi".
+        name_imagefile (str, optional): Name of the file. Defaults to "PGC_10x_S02.czi".
 
     Returns:
-        str: Absolute path of the CZI file
+        str: Absolute path of the file
     """
 
     datadir = pkg_resources.resource_filename(PACKAGE_NAME, PACKAGE_DATA)
-    czi_file = os.path.join(datadir, name_czi)
+    path_imagefile = os.path.join(datadir, name_imagefile)
 
-    utils.check_file(czi_file)
+    utils.check_file(path_imagefile)
 
-    return czi_file
+    return path_imagefile
