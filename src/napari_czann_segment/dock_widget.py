@@ -2,7 +2,7 @@
 
 #################################################################
 # File        : dock_widget.py
-# Author      : Team Enchilada
+# Author      : sebi06
 #
 # Disclaimer: This code is purely experimental. Feel free to
 # use it at your own risk.

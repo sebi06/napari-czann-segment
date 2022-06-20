@@ -2,7 +2,7 @@
 
 #################################################################
 # File        : test ndarray_with_2d_tiling.py
-# Author      : Team Enchilada
+# Author      : sebi06
 #
 # Disclaimer: This code is purely experimental. Feel free to
 # use it at your own risk.
