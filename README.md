@@ -65,7 +65,7 @@ The plugin allows you read open a *.czann file contains das Deep Neural Network 
 
 A test image and a *.czann model file can be downloaded [here](https://github.com/sebi06/napari-czann-segment/tree/main/src/napari_czann_segment/_data).
 
-- `PGC_20X.czi` --> use `PGC_20X_nucleus_detector.czann` to segment
+- `PGC_20X.ome.tiff` --> use `PGC_20X_nucleus_detector.czann` to segment
 
 In order to use this plugin the user has to do the following things:
 
