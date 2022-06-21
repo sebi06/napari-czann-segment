@@ -1,28 +1,12 @@
-name: napari-czann-segment
-display_name: CZANN Segment
+name: napari-czann-segment # needs to match your package name
+display_name: CZANN Segmentation # will also be used on the hub soon
+
 contributions:
   commands:
-    - id: napari-czann-segment.make_sample_data
-      python_name: napari_czann_segment._sample_data:make_sample_data
-      title: Load sample data from CZANN Segment
-    - id: napari-czann-segment.make_qwidget
-      python_name: napari_czann_segment._widget:ExampleQWidget
-      title: Make example QWidget
-    - id: napari-czann-segment.make_magic_widget
-      python_name: napari_czann_segment._widget:example_magic_widget
-      title: Make example magic widget
-    - id: napari-czann-segment.make_func_widget
-      python_name: napari_czann_segment._widget:example_function_widget
-      title: Make example function widget
-  sample_data:
-    - command: napari-czann-segment.make_sample_data
-      display_name: CZANN Segment
-      key: unique_id.1
+    - id: napari-czann-segment.get_czann_widget
+      python_name: napari_czann_segment.dock_widget:segment_with_czann
+      title: CZANN segmentation Adv
+
   widgets:
-    - command: napari-czann-segment.make_qwidget
-      display_name: Example QWidget
-    - command: napari-czann-segment.make_magic_widget
-      display_name: Example Magic Widget
-    - command: napari-czann-segment.make_func_widget
-      autogenerate: true
-      display_name: Example Function Widget
+    - command: napari-czann-segment.get_czann_widget
+      display_name: Segment with CZANN Model
