@@ -83,7 +83,8 @@ jobs:
       - name: Build and publish
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TWINE_PYPI_TOKEN }}
+          #TWINE_PASSWORD: ${{ secrets.TWINE_PYPI_TOKEN }}
+          TWINE_PASSWORD: ${{ secrets.TWINE_TESTPYPI_TOKEN }}
         run: |
           git tag
           python -m build .
