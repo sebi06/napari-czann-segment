@@ -2,7 +2,7 @@
 
 #################################################################
 # File        : dock_widget.py
-# Author      : sebi06
+# Author      : sebi06, Team Enchilada
 #
 # Disclaimer: This code is purely experimental. Feel free to
 # use it at your own risk.
@@ -55,7 +55,7 @@ class segment_with_czann(QWidget):
         self.dnn_tile_width: int = 1024
         self.dnn_tile_height: int = 1024
 
-        ## TODO : Enable GPU support and make it work
+        # TODO : Enable GPU support and make it work
         self.use_gpu: bool = False
 
         # create a layout
@@ -104,7 +104,7 @@ class segment_with_czann(QWidget):
         self.viewer.layers.events.inserted.connect(self._reset_layer_options)
         self.viewer.layers.events.removed.connect(self._reset_layer_options)
 
-        ## TODO : This checkbox is currentyl hidden
+        # TODO : This checkbox is currentyl hidden
         # add the checkbox the use the GPU for the inference
         self.use_gpu_checkbox = CheckBox(name="Use GPU for inference",
                                          visible=False,
@@ -218,7 +218,8 @@ class segment_with_czann(QWidget):
 
     def _file_changed(self):
 
-        self.czann_file = str(self.filename_edit.value.absolute()).replace("\\", "/").replace("//", "/")
+        self.czann_file = str(self.filename_edit.value.absolute()
+                              ).replace("\\", "/").replace("//", "/")
         print("Model Path: ", self.czann_file)
 
         # update the minimum overlap

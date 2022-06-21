@@ -2,7 +2,7 @@
 
 #################################################################
 # File        : get_testdata.py
-# Author      : sebi06
+# Author      : sebi06, Team Enchilada
 #
 # Disclaimer: This code is purely experimental. Feel free to
 # use it at your own risk.

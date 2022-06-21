@@ -2,7 +2,7 @@
 
 #################################################################
 # File        : predict.py
-# Author      : sebi06
+# Author      : sebi06, Team Enchilada
 #
 # Disclaimer: This code is purely experimental. Feel free to
 # use it at your own risk.
@@ -61,7 +61,8 @@ def predict_ndarray(czann_file: str,
     with tempfile.TemporaryDirectory() as temp_path:
 
         # this is the new way of unpacking using the czann files
-        modelmd, model_path = DefaultConverter().unpack_model(model_file=czann_file, target_dir=Path(temp_path))
+        modelmd, model_path = DefaultConverter().unpack_model(
+            model_file=czann_file, target_dir=Path(temp_path))
 
         req_tilewidth = modelmd.input_shape[0]
         req_tileheight = modelmd.input_shape[1]
@@ -135,7 +136,8 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
             tile2d = predict_single_tile(tile2d, inferencer, use_gpu=use_gpu)
 
             # place result inside the new image
-            new_img2d[tile.roi.x:tile.roi.x + tile.roi.w, tile.roi.y:tile.roi.y + tile.roi.h] = tile2d
+            new_img2d[tile.roi.x:tile.roi.x + tile.roi.w,
+                      tile.roi.y:tile.roi.y + tile.roi.h] = tile2d
 
     else:
         raise tile_has_wrong_dimensionality(img2d.ndim)

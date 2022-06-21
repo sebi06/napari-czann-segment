@@ -2,7 +2,7 @@
 
 #################################################################
 # File        : tiling.py
-# Author      : sebi06
+# Author      : sebi06, Team Enchilada
 #
 # Disclaimer: This code is purely experimental. Feel free to
 # use it at your own risk.
@@ -69,7 +69,8 @@ def process2d_tiles(func2d: Callable,
             tile2d = func2d(tile2d, **kwargs)
 
             # place frame inside the new image
-            new_img2d[tile.roi.x:tile.roi.x + tile.roi.w, tile.roi.y:tile.roi.y + tile.roi.h] = tile2d
+            new_img2d[tile.roi.x:tile.roi.x + tile.roi.w,
+                      tile.roi.y:tile.roi.y + tile.roi.h] = tile2d
 
     if img2d.ndim != 2:
         raise tile_has_wrong_dimensionality(img2d.ndim)

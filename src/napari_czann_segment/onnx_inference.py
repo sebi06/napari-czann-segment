@@ -2,7 +2,7 @@
 
 #################################################################
 # File        : onnx_inference.py
-# Author      : sebi06
+# Author      : sebi06, Team Enchilada
 #
 # Disclaimer: This code is purely experimental. Feel free to
 # use it at your own risk.
@@ -114,7 +114,8 @@ class OnnxInferencer:
             The expected input shape.
         """
         with ManagedOnnxSession(self._model_path, providers=["CPUExecutionProvider"]) as sess:
-            input_shape = tuple(elem if isinstance(elem, int) else None for elem in sess.get_inputs()[0].shape)
+            input_shape = tuple(elem if isinstance(elem, int)
+                                else None for elem in sess.get_inputs()[0].shape)
             if len(input_shape) != 4:
                 raise ValueError(
                     f"The input shape of the model must have four dimensions. Found dimensions: {input_shape}"
@@ -130,7 +131,8 @@ class OnnxInferencer:
             The output shape of the model.
         """
         with ManagedOnnxSession(self._model_path, providers=["CPUExecutionProvider"]) as sess:
-            output_shape = tuple(elem if isinstance(elem, int) else None for elem in sess.get_outputs()[0].shape)
+            output_shape = tuple(elem if isinstance(elem, int)
+                                 else None for elem in sess.get_outputs()[0].shape)
             if len(output_shape) != 4:
                 raise ValueError(
                     f"The output shape of the model must have four dimensions. Found dimensions: {output_shape}"
