@@ -19,6 +19,7 @@ on:
 jobs:
   test:
     name: ${{ matrix.platform }} py${{ matrix.python-version }}
+    if: startsWith(github.ref, 'refs/tags')
     runs-on: ${{ matrix.platform }}
     strategy:
       matrix:
