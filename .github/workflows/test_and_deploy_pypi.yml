@@ -1,7 +1,7 @@
 # This workflows will upload a Python Package using Twine when a release is created
 # For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
 
-name: tests
+name: tests_and_deploy_pypi
 
 on:
   push:
@@ -85,7 +85,7 @@ jobs:
   #     - name: Build and publish
   #       env:
   #         TWINE_USERNAME: __token__
-  #         TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+  #         TWINE_PASSWORD: ${{ secrets.TWINE_PYPI_TOKEN }}
   #       run: |
   #         git tag
   #         python -m build .
@@ -93,6 +93,7 @@ jobs:
 
   build-n-publish:
     name: Build and publish Python distributions to PyPI and TestPyPI
+    if: startsWith(github.ref, 'refs/tags')
     needs: [test]
     runs-on: ubuntu-latest
     steps:
@@ -100,7 +101,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v1
       with:
-        python-version: 3.9
+        python-version: "3.x"
     - name: Install pypa/build
       run: >-
         python -m
@@ -115,14 +116,12 @@ jobs:
         --wheel
         --outdir dist/
         .
-    - name: Publish to Test PyPI
-      if: startsWith(github.ref, 'refs/tags')
-      uses: pypa/gh-action-pypi-publish@master
-      with:
-        password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-        repository_url: https://test.pypi.org/legacy/
     # - name: Publish to PyPI
-    #   if: startsWith(github.ref, 'refs/tags')
     #   uses: pypa/gh-action-pypi-publish@master
     #   with:
-    #     password: ${{ secrets.PYPI_API_TOKEN }}
+    #     password: ${{ secrets.TWINE_TESTPYPI_TOKEN }}
+    #     repository_url: https://test.pypi.org/legacy/
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@master
+      with:
+        password: ${{ secrets.TWINE_PYPI_TOKEN }}

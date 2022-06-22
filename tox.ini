@@ -1,19 +1,22 @@
 # For more information about tox, see https://tox.readthedocs.io/en/latest/
 [tox]
-envlist = py{39}-{windows}
+envlist = py{38,39}-{linux,windows}
 isolated_build=true
 
 [gh-actions]
 python =
+    3.8: py38
     3.9: py39
 
 [gh-actions:env]
 PLATFORM =
     ubuntu-latest: linux
+    windows-latest: windows
 
 [testenv]
 platform =
     linux: linux
+    windows: win32
 passenv =
     CI
     GITHUB_ACTIONS
