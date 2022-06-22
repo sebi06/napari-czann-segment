@@ -6,3 +6,4 @@ recursive-exclude * *.py[co]
 recursive-exclude * *.ome.tiff
 recursive-exclude * *.czann
 recursive-exclude * *.tiff
+recursive-exclude * *.tif
