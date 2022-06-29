@@ -12,7 +12,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from cztile.fixed_total_area_strategy import AlmostEqualBorderFixedTotalAreaStrategy2D
-import os
 from typing import Union
 from aicsimageio import AICSImage
 import dask.array as da
