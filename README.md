@@ -20,10 +20,8 @@ https://napari.org/plugins/index.html
 -->
 
 
-![Train on APEER and use model in Napari](readme_images/Train_APEER_run_Napari_CZANN_no_highlights.gif)
+![Train on APEER and use model in Napari](./readme_images/Train_APEER_run_Napari_CZANN_no_highlights.gif)
 
-- Provides sematic segmentation using Deep Learning models (ONNX) packages as a *.czann file.
-- Status: Pre-Alpha - Use it at your own risk!
 
 ## Installation
 
@@ -73,13 +71,13 @@ In order to use this plugin the user has to do the following things:
 - Activate the **napari-czann-segment** plugin from "Plugins".
 - Select a *.czann file to use the model for segmentation.
 
-![Napari - Image loaded and czann selected](readme_images/napari_czann1.png)
+![Napari - Image loaded and czann selected](./readme_images/napari_czann1.png)
 
 - Adjust the minimum overlap used to the tiling (optional).
 - Select the layer to be segmented.
 - Press **Segment Selected Image Layer" to run the segmentation.
 
-![Napari - Image successfully segmented](readme_images/napari_czann2.png)
+![Napari - Image successfully segmented](./readme_images/napari_czann2.png)
 
 ### Remarks
 

@@ -1,0 +1,44 @@
+# run: conda env create --file env_napari_czann_segment.yml
+name: test_napari
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - conda
+  - docutils
+  - pip
+  - wheel
+  - cudatoolkit=11
+  - cudnn
+  - setuptools
+  - autopep8
+  - nb_conda_kernels
+
+  - pip:
+      - czmodel
+      - cztile
+      - napari[all]
+      - onnxruntime
+      - aicsimageio
+      - aicspylibczi
+      - napari-aicsimageio
+      - napari-brightness-contrast
+      - napari-layer-details-display
+      - napari-skimage-regionprops
+      - napari-simpleitk-image-processing
+      - napari-plugin-search
+
+# Create an environment
+# conda env create --file env_napari_czann_segment.yml
+
+# Update an environment
+# conda env update --name napari_czmodel --file env_napari_czann_segment.yml --prune
+
+# Remove an environment
+# conda remove --name napari_czann_segment --all
+# conda clean --all
+
+# Show the locations of all versions of Python that are currently in the path
+# Windows: where python
+# Linux which -a python
