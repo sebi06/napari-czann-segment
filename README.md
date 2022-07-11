@@ -5,7 +5,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-czann-segment.svg?color=green)](https://python.org)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-czann-segment)](https://napari-hub.org/plugins/napari-czann-segment)
 
-Semantic Segmention using DeepLearning ONNX models packaged as *.czann files.
+Semantic Segmentation using DeepLearning ONNX models packaged as *.czann files.
 
 ----------------------------------
 
@@ -20,7 +20,7 @@ https://napari.org/plugins/index.html
 -->
 
 
-![Train on APEER and use model in Napari](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/Train_APEER_run_Napari_CZANN_no_highlights.gif)
+![Train on APEER and use model in Napari](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/Train_APEER_run_Napari_CZANN_no_highlights.gif?raw=True)
 
 
 ## Installation
@@ -84,6 +84,9 @@ A successful is obviously only the starting point for further image analysis ste
 ![Napari - Simple Grain Size Analysis](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/grainsize_czann_napari.png)
 
 ### Remarks
+
+> **IMPORTANT**: Currently the plugin only supports using models trained on a **single channel** image. Therefore make sure that during the training on [APEER] or somewhere else the correct inputs images are used.
+> It is quite simple to train an single RGB image, which actually has three channels, load this image in [napari] and notice only then that the model will not work, because the image will 3 channels inside [napari].
 
 - Only the CPU will be used for the inference using the ONNX runtime for the [ONNX-CPU] runtime
 - GPUs are not supported yet and will require [ONNX-GPU] runtime
