@@ -69,15 +69,19 @@ In order to use this plugin the user has to do the following things:
 
 - Open the image using "File - Open Files(s)" (requires [napari-aicsimageio] plugin).
 - Activate the **napari-czann-segment** plugin from "Plugins".
-- Select a *.czann file to use the model for segmentation.
+- **Select a *.czann file** to use the model for segmentation.
 
 ![Napari - Image loaded and czann selected](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann1.png)
 
-- Adjust the minimum overlap used to the tiling (optional).
-- Select the layer to be segmented.
-- Press **Segment Selected Image Layer" to run the segmentation.
+- Adjust the **minimum overlap** used to the tiling (optional).
+- Select the **layer** to be segmented.
+- Press **Segment Selected Image Layer** to run the segmentation.
 
 ![Napari - Image successfully segmented](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann2.png)
+
+A successful is obviously only the starting point for further image analysis steps to extract the desired numbers from the segmented image. Another example is shown below demonstrating a simple "Grain Size Analysis" using a deep-learning model trained on [APEER] used in [napari]
+
+![Napari - Simple Grain Size Analysis](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/grainsize_czann_napari.png)
 
 ### Remarks
 
