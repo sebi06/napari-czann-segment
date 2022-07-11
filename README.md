@@ -20,7 +20,7 @@ https://napari.org/plugins/index.html
 -->
 
 
-![Train on APEER and use model in Napari](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/Train_APEER_run_Napari_CZANN_no_highlights.gif?raw=True)
+![Train on APEER and use model in Napari](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/Train_APEER_run_Napari_CZANN_no_highlights_small.gif?raw=True)
 
 
 ## Installation
