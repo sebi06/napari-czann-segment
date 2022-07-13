@@ -27,6 +27,18 @@ def predict_single_tile(tile2d: Union[np.ndarray, da.Array],
                         inferencer: OnnxInferencer,
                         do_rescale: bool = True,
                         use_gpu: bool = False) -> Union[np.ndarray, da.Array]:
+    """Predict a single tile (2d image array) using an OnnxInferencer
+
+    Args:
+        tile2d (Union[np.ndarray, da.Array]): 2d image array
+        inferencer (OnnxInferencer): OnnxInnferencer
+        do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True.
+        use_gpu (bool, optional): use GPU for the prediction. Defaults to False.
+
+    Returns:
+        Union[np.ndarray, da.Array]: segmented 2d image array
+    """
+
     # make sure a numpy array is used for the prediction
     if isinstance(tile2d, da.Array):
         tile2d = tile2d.compute()
@@ -48,6 +60,18 @@ def predict_ndarray(czann_file: str,
                     img: Union[np.ndarray, da.Array],
                     border: Union[str, int] = "auto",
                     use_gpu: bool = False) -> Tuple[Any, Union[np.ndarray, da.Array]]:
+    """Run the prediction on a multi-dimensional numpy array
+
+    Args:
+        czann_file (str): path for the *.czann file containing the ONNX model
+        img (Union[np.ndarray, da.Array]): multi-dimensional array
+        border (Union[str, int], optional): parameter to adjust the bordersize. Defaults to "auto".
+        use_gpu (bool, optional): use GPU for the prediction. Defaults to False.
+
+    Returns:
+        Tuple[Any, Union[np.ndarray, da.Array]]: Return model metadata and the segmented multi-dimensional array
+    """
+
     seg_complete = da.zeros_like(img, chunks=img.shape)
 
     # get the shape without the XY dimensions
@@ -111,6 +135,23 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
                     tile_height: int = 1024,
                     min_border_width: int = 8,
                     use_gpu: bool = False) -> Union[np.ndarray, da.Array]:
+    """Predict a larger 2D image array
+
+    Args:
+        img2d (Union[np.ndarray, da.Array]): larger 2D image
+        model_path (os.PathLike): path to *.czann model file
+        tile_width (int, optional): width of tile required for prediction. Defaults to 1024.
+        tile_height (int, optional): height of tile required for prediction. Defaults to 1024.
+        min_border_width (int, optional): minimum border width for tiling. Defaults to 8.
+        use_gpu (bool, optional): use GPU for the prediction. Defaults to False.
+
+    Raises:
+        tile_has_wrong_dimensionality: _description_
+
+    Returns:
+        Union[np.ndarray, da.Array]: segmented larger 2d image
+    """
+
     if img2d.ndim == 2:
 
         new_img2d = da.zeros_like(img2d, chunks=(img2d.shape[0], img2d.shape[1]))

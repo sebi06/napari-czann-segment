@@ -20,6 +20,7 @@ def label_nd(seg: Union[np.ndarray, da.Array],
              labelvalue: int = 0,
              # output_dask: bool = False,
              ) -> Union[np.ndarray, da.Array]:
+
     shape_woXY = seg.shape[:-2]
 
     label_complete = da.zeros_like(seg, chunks=seg.shape)
@@ -48,8 +49,5 @@ def label_nd(seg: Union[np.ndarray, da.Array],
         label_complete[tuple(sl)] = new_label2d
 
         print("Datatype Labels", type(label_complete))
-
-        # if isinstance(label_complete, da.Array):
-        #    label_complete = label_complete.compute()
 
     return label_complete
