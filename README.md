@@ -30,28 +30,6 @@ You can then install `napari-czann-segment` via [pip]:
 
     pip install napari-czann-segment
 
-## For developers
-
-- **Please clone this repository first using your favorite tool.**
-
-- **Ideally one creates a new [conda] environment or use an existing environment that already contains [Napari].**
-
-Feel free to create a new environment using the [YAML](env_napari_czann_segment.yml) file at your own risk:
-
-    cd the-github-repo-with-YAML-file
-    conda env create --file conda_env_napari_czann_segment.yml
-    conda activate napari_czmodel
-
-- **Install the plugin locally**
-
-Please run the the following command:
-
-    pip install -e .
-
-To install latest development version:
-
-    pip install git+https://github.com/sebi06/napari_czann_segment.git
-
 ## What does the plugin do
 
 The plugin allows you read open a *.czann file contains das Deep Neural Network (ONNX) for semantic segmentation and metadata. Such a model con be created in two ways:
@@ -93,6 +71,29 @@ A successful is obviously only the starting point for further image analysis ste
 
 - Only the CPU will be used for the inference using the ONNX runtime for the [ONNX-CPU] runtime
 - GPUs are not supported yet and will require [ONNX-GPU] runtime
+
+## For developers
+
+- **Please clone this repository first using your favorite tool.**
+
+- **Ideally one creates a new [conda] environment or use an existing environment that already contains [Napari].**
+
+Feel free to create a new environment using the [YAML](env_napari_czann_segment.yml) file at your own risk:
+
+    cd the-github-repo-with-YAML-file
+    conda env create --file conda_env_napari_czann_segment.yml
+    conda activate napari_czmodel
+
+- **Install the plugin locally**
+
+Please run the the following command:
+
+    pip install -e .
+
+To install latest development version:
+
+    pip install git+https://github.com/sebi06/napari_czann_segment.git
+
 
 ## Contributing
 
