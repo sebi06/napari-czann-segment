@@ -49,7 +49,7 @@ A test image and a *.czann model file can be downloaded [here](https://github.co
 In order to use this plugin the user has to do the following things:
 
 - Open the image using "File - Open Files(s)" (requires [napari-aicsimageio] plugin).
-- Activate the **napari-czann-segment** plugin from "Plugins".
+- Click **napari-czann-segment: Segment with CZANN model** in the "Plugins" menu.
 - **Select a *.czann file** to use the model for segmentation.
 
 ![Napari - Image loaded and czann selected](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann1.png)
