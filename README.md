@@ -22,8 +22,15 @@ https://napari.org/plugins/index.html
 
 ![Train on APEER and use model in Napari](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/Train_APEER_run_Napari_CZANN_no_highlights_small.gif)
 
-
 ## Installation
+
+Before installing, please setup a conda environment. If you have never worked with conda environments, go through [this tutorial](https://biapol.github.io/blog/johannes_mueller/anaconda_getting_started/) first.
+
+You can then install `napari-czann-segment` via [pip]:
+
+    pip install napari-czann-segment
+
+## For developers
 
 - **Please clone this repository first using your favorite tool.**
 
@@ -40,10 +47,6 @@ Feel free to create a new environment using the [YAML](env_napari_czann_segment.
 Please run the the following command:
 
     pip install -e .
-
-You can install `napari-czann-segment` via [pip] soon, when it will be published:
-
-    pip install napari-czann-segment
 
 To install latest development version:
 
