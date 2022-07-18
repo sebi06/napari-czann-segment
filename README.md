@@ -32,11 +32,21 @@ You can then install `napari-czann-segment` via [pip]:
 
 ## What does the plugin do
 
-The plugin allows you read open a *.czann file contains das Deep Neural Network (ONNX) for semantic segmentation and metadata. Such a model con be created in two ways:
+The plugin allows you to:
+
+- Use a *.czann file containing the Deep Neural Network (ONNX) for semantic segmentation and metadata
+- Segmentation will be applied per 2D plane for all dimensions
+- Processing larger multi-dimensional images it uses the [cztile] package to chunk the individual 2d arrays using a specific overlap.
+
+## What does the plugin NOT do
+
+**Before one can actually use a model it needs to be trained, which is NOT done by this plugin**.
+
+Therer two main ways hwo such a model can be created:
 
 - Train the segmentation model fully automated on [APEER] and download the *.czann file
 - Train your model in a Jupyter notebook etc. and package it using the [czmodel] python package as an *.czann
-- To process also larger multi-dimensional images it uses the [cztile] package to chunk the individual 2d arrays using a specific overlap.
+
 
 ## Using this plugin
 
