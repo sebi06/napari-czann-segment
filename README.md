@@ -55,11 +55,11 @@ In order to use this plugin the user has to do the following things:
 
 | Parameter    | Value                                        | Explanation                                             |
 | :----------- | :------------------------------------------- | ------------------------------------------------------- |
-| model_type   | ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION | see: [czmodel] for details
-| input_shape  | [1024, 1024, 1]                              | tile dimensions required for the input                  |
-| output_shape | [1024, 1024, 3]                              | tile dimensionsof the output                            |
+| model_type   | ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION | see: [czmodel] for details                              |
+| input_shape  | [1024, 1024, 1]                              | tile dimensions of model input                          |
+| output_shape | [1024, 1024, 3]                              | tile dimensions of model output                         |
 | model_id     | ba32bc6d-6bc9-4774-8b47-20646c7cb838         | unique GUID for that model                              |
-| min_overlap  | [128, 128]                                   | tile overlap used during training                       |
+| min_overlap  | [128, 128]                                   | tile overlap used during training (for this model)      |
 | classes      | ['background', 'grains', 'inclusions']       | availbale classes                                       |
 | model_name   | APEER-trained model                          | name of the model                                       |
 
