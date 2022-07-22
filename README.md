@@ -61,6 +61,17 @@ In order to use this plugin the user has to do the following things:
 - Open the image using "File - Open Files(s)" (requires [napari-aicsimageio] plugin).
 - Click **napari-czann-segment: Segment with CZANN model** in the "Plugins" menu.
 - **Select a *.czann file** to use the model for segmentation.
+- the metadata of the model will be shown (see example below)
+
+| Parameter    | Value                                        |
+| ------------ | -------------------------------------------- |
+| model_type   | ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION |
+| input_shape  | [1024, 1024, 1]                              |
+| output_shape | [1024, 1024, 3]                              |
+| model_id     | ba32bc6d-6bc9-4774-8b47-20646c7cb838         |
+| min_overlap  | [128, 128]                                   |
+| classes      | ['background', 'grains', 'inclusions']       |
+| model_name   | APEER-trained model                          |
 
 ![Napari - Image loaded and czann selected](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann1.png)
 
