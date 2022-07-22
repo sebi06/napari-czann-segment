@@ -51,7 +51,7 @@ In order to use this plugin the user has to do the following things:
 - Open the image using "File - Open Files(s)" (requires [napari-aicsimageio] plugin).
 - Click **napari-czann-segment: Segment with CZANN model** in the "Plugins" menu.
 - **Select a *.czann file** to use the model for segmentation.
-- the metadata of the model will be shown (see example below)
+- metadata of the model will be shown (see example below)
 
 | Parameter    | Value                                        | Explanation                                             |
 | :----------- | :------------------------------------------- | ------------------------------------------------------- |
