@@ -85,8 +85,8 @@ def predict_ndarray(czann_file: str,
     with tempfile.TemporaryDirectory() as temp_path:
 
         # this is the new way of unpacking using the czann files
-        modelmd, model_path = DefaultConverter().unpack_model(
-            model_file=czann_file, target_dir=Path(temp_path))
+        modelmd, model_path = DefaultConverter().unpack_model(model_file=czann_file,
+                                                              target_dir=Path(temp_path))
 
         req_tilewidth = modelmd.input_shape[0]
         req_tileheight = modelmd.input_shape[1]

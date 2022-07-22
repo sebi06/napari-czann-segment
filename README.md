@@ -11,15 +11,6 @@ Semantic Segmentation using DeepLearning ONNX models packaged as *.czann files.
 
 This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
 
-<!--
-Don't miss the full getting started guide to set up your new package:
-https://github.com/napari/cookiecutter-napari-plugin#getting-started
-
-and review the napari docs for plugin developers:
-https://napari.org/plugins/index.html
--->
-
-
 ![Train on APEER and use model in Napari](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/Train_APEER_run_Napari_CZANN_no_highlights_small.gif)
 
 ## Installation
@@ -47,7 +38,6 @@ Therer two main ways hwo such a model can be created:
 - Train the segmentation model fully automated on [APEER] and download the *.czann file
 - Train your model in a Jupyter notebook etc. and package it using the [czmodel] python package as an *.czann
 
-
 ## Using this plugin
 
 ### Sample Data
@@ -61,10 +51,21 @@ In order to use this plugin the user has to do the following things:
 - Open the image using "File - Open Files(s)" (requires [napari-aicsimageio] plugin).
 - Click **napari-czann-segment: Segment with CZANN model** in the "Plugins" menu.
 - **Select a *.czann file** to use the model for segmentation.
+- metadata of the model will be shown (see example below)
+
+| Parameter    | Value                                        | Explanation                                             |
+| :----------- | :------------------------------------------- | ------------------------------------------------------- |
+| model_type   | ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION | see: [czmodel] for details
+| input_shape  | [1024, 1024, 1]                              | tile dimensions required for the input                  |
+| output_shape | [1024, 1024, 3]                              | tile dimensionsof the output                            |
+| model_id     | ba32bc6d-6bc9-4774-8b47-20646c7cb838         | unique GUID for that model                              |
+| min_overlap  | [128, 128]                                   | tile overlap used during training                       |
+| classes      | ['background', 'grains', 'inclusions']       | availbale classes                                       |
+| model_name   | APEER-trained model                          | name of the model                                       |
 
 ![Napari - Image loaded and czann selected](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann1.png)
 
-- Adjust the **minimum overlap** used to the tiling (optional).
+- Adjust the **minimum overlap** for the tiling (optional, see [cztile] for details).
 - Select the **layer** to be segmented.
 - Press **Segment Selected Image Layer** to run the segmentation.
 
@@ -103,7 +104,6 @@ Please run the the following command:
 To install latest development version:
 
     pip install git+https://github.com/sebi06/napari_czann_segment.git
-
 
 ## Contributing
 
