@@ -5,7 +5,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-czann-segment.svg?color=green)](https://python.org)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-czann-segment)](https://napari-hub.org/plugins/napari-czann-segment)
 
-Semantic Segmentation using DeepLearning ONNX models packaged as *.czann files.
+Semantic Segmentation of multi-dimensional images using Deep Learning ONNX models packaged as *.czann files.
 
 ----------------------------------
 
@@ -28,6 +28,7 @@ The plugin allows you to:
 - Use a *.czann file containing the Deep Neural Network (ONNX) for semantic segmentation and metadata
 - Segmentation will be applied per 2D plane for all dimensions
 - Processing larger multi-dimensional images it uses the [cztile] package to chunk the individual 2d arrays using a specific overlap.
+- multi-dimensional images will be processed plane-by-plane
 
 ## What does the plugin NOT do
 
