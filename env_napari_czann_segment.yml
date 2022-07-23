@@ -1,5 +1,5 @@
 # run: conda env create --file env_napari_czann_segment.yml
-name: test_napari
+name: napari_czann_segment
 channels:
   - defaults
   - conda-forge
@@ -22,6 +22,7 @@ dependencies:
       - onnxruntime
       - aicsimageio
       - aicspylibczi
+      - pylibCZIrw
       - napari-aicsimageio
       - napari-brightness-contrast
       - napari-layer-details-display
@@ -33,7 +34,7 @@ dependencies:
 # conda env create --file env_napari_czann_segment.yml
 
 # Update an environment
-# conda env update --name napari_czmodel --file env_napari_czann_segment.yml --prune
+# conda env update --name napari_czann_segment --file env_napari_czann_segment.yml --prune
 
 # Remove an environment
 # conda remove --name napari_czann_segment --all
