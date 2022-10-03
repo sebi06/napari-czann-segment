@@ -15,7 +15,16 @@ from aicsimageio import AICSImage
 from pathlib import Path
 import tempfile
 import os
-from czmodel.convert import DefaultConverter
+try:
+    # for czmodel <5
+    from czmodel.convert import DefaultConverter
+except ModuleNotFoundError:
+    try:
+        # for czmodel >=5
+        from czmodel.pytorch.convert import DefaultConverter
+    except ModuleNotFoundError:
+        from czmodel.tensorflow.convert import DefaultConverter
+
 
 
 def test_extract_model():

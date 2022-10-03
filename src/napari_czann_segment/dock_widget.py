@@ -19,7 +19,15 @@ from .process_nd import label_nd
 from .predict import predict_ndarray
 import tempfile
 from pathlib import Path
-from czmodel.convert import DefaultConverter
+try:
+    # for czmodel <5
+    from czmodel.convert import DefaultConverter
+except ModuleNotFoundError:
+    try:
+        # for czmodel >=5
+        from czmodel.pytorch.convert import DefaultConverter
+    except ModuleNotFoundError:
+        from czmodel.tensorflow.convert import DefaultConverter
 from typing import Dict, List, Tuple, Union
 from qtpy.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton, QLineEdit, QListWidgetItem,
                             QVBoxLayout, QWidget, QFileDialog, QDialogButtonBox, QSlider,
