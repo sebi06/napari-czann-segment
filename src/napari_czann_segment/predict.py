@@ -18,15 +18,7 @@ from .onnx_inference import OnnxInferencer
 from cztile.fixed_total_area_strategy import AlmostEqualBorderFixedTotalAreaStrategy2D
 from cztile.tiling_strategy import Rectangle as czrect
 from tqdm import tqdm
-try:
-    # for czmodel <5
-    from czmodel.convert import DefaultConverter
-except ModuleNotFoundError:
-    try:
-        # for czmodel >=5
-        from czmodel.pytorch.convert import DefaultConverter
-    except ModuleNotFoundError:
-        from czmodel.tensorflow.convert import DefaultConverter
+from czmodel.pytorch.convert import DefaultConverter
 from pathlib import Path
 import os
 

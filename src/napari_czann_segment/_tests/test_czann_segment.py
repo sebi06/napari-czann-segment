@@ -15,16 +15,7 @@ from aicsimageio import AICSImage
 from pathlib import Path
 import tempfile
 import os
-try:
-    # for czmodel <5
-    from czmodel.convert import DefaultConverter
-except ModuleNotFoundError:
-    try:
-        # for czmodel >=5
-        from czmodel.pytorch.convert import DefaultConverter
-    except ModuleNotFoundError:
-        from czmodel.tensorflow.convert import DefaultConverter
-
+from czmodel.pytorch.convert import DefaultConverter
 
 
 def test_extract_model():
@@ -83,10 +74,20 @@ def test_ndarray_prediction():
     print("Dimension Original Image:", aics_img.dims)
     print("Array Shape Original Image:", aics_img.shape)
 
+    scale_x = 1.0
+    scale_y = 1.0
+
+    if aics_img.physical_pixel_sizes.X is not None:
+        scale_x = aics_img.physical_pixel_sizes.X
+
     if aics_img.physical_pixel_sizes.X is None:
-        aics_img.physical_pixel_sizes.X = 1.0
-    if aics_img.physical_pixel_sizes.Y is None:
-        aics_img.physical_pixel_sizes.Y = 1.0
+        scale_x = 1.0
+
+    if aics_img.physical_pixel_sizes.Y is not None:
+        scale_y = aics_img.physical_pixel_sizes.Y
+
+    if aics_img.physical_pixel_sizes.X is None:
+        scale_y = 1.0
 
     assert (aics_img.dims._dims_shape == {'T': 1,
                                           'C': 1,
@@ -98,7 +99,8 @@ def test_ndarray_prediction():
     assert (aics_img.physical_pixel_sizes.Z == 1.0)
 
     # get the scaling - will be applied to the segmentation outputs
-    scale = (aics_img.physical_pixel_sizes.X, aics_img.physical_pixel_sizes.Y)
+    #scale = (aics_img.physical_pixel_sizes.X, aics_img.physical_pixel_sizes.Y)
+    scale = (scale_x, scale_y)
 
     # read the image data as numpy or dask array
     img = aics_img.get_image_data()
@@ -135,3 +137,6 @@ def test_ndarray_prediction():
         assert (labels_current_class.max().compute() == lc_max[c])
 
     print("Done.")
+
+
+test_ndarray_prediction()

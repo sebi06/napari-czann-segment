@@ -10,6 +10,7 @@
 # Partially based upon the workshop-demo plugin: https://github.com/DragaDoncila/workshop-demo
 # and the instructions and example found here: https://napari.org/plugins/stable/for_plugin_developers.html
 #
+# Remarks: Required czmodel[pytorch] >= 5.
 #################################################################
 
 
@@ -19,15 +20,7 @@ from .process_nd import label_nd
 from .predict import predict_ndarray
 import tempfile
 from pathlib import Path
-try:
-    # for czmodel <5
-    from czmodel.convert import DefaultConverter
-except ModuleNotFoundError:
-    try:
-        # for czmodel >=5
-        from czmodel.pytorch.convert import DefaultConverter
-    except ModuleNotFoundError:
-        from czmodel.tensorflow.convert import DefaultConverter
+from czmodel.pytorch.convert import DefaultConverter
 from typing import Dict, List, Tuple, Union
 from qtpy.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton, QLineEdit, QListWidgetItem,
                             QVBoxLayout, QWidget, QFileDialog, QDialogButtonBox, QSlider,
