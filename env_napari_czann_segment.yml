@@ -1,34 +1,40 @@
 # run: conda env create --file env_napari_czann_segment.yml
 name: napari_czann_segment
 channels:
+  - pytorch
+  - nvidia
   - defaults
   - conda-forge
+  - nvidia
+
 dependencies:
   - python=3.9
   - conda
   - docutils
   - pip
   - wheel
-  - cudatoolkit=11
-  - cudnn
+  - pytorch
+  - pytorch-cuda=11.7
   - setuptools
   - autopep8
   - nb_conda_kernels
+  - pytest
 
   - pip:
       - czmodel[pytorch]>=5
       - cztile
-      - napari[all]
-      - onnxruntime
+      - onnxruntime-gpu
       - aicsimageio[all]
       - aicspylibczi
-      - pylibCZIrw
+      - napari[all]
       - napari-aicsimageio
       - napari-brightness-contrast
       - napari-layer-details-display
       - napari-skimage-regionprops
       - napari-simpleitk-image-processing
       - napari-plugin-search
+      - napari-ome-zarr
+      - tifffile>=2023.4.12
 
 # Create an environment
 # conda env create --file env_napari_czann_segment.yml
@@ -43,3 +49,7 @@ dependencies:
 # Show the locations of all versions of Python that are currently in the path
 # Windows: where python
 # Linux which -a python
+
+# verfify CUDA
+# nvcc --version
+# nvidia-smi

@@ -10,7 +10,7 @@
 # Partially based upon the workshop-demo plugin: https://github.com/DragaDoncila/workshop-demo
 # and the instructions and example found here: https://napari.org/plugins/stable/for_plugin_developers.html
 #
-# Remarks: Required czmodel[pytorch] >= 5.
+# Remarks: Requires czmodel[pytorch] >= 5.
 #################################################################
 
 
@@ -121,7 +121,7 @@ class segment_with_czann(QWidget):
         self.dnn_tile_height = 1024
         self.dnn_channel_number = 1
 
-        # TODO : Enable GPU support and make it work
+        # Should work now but seems to be slower than using CPU ...
         self.use_gpu: bool = False
 
         # create a layout
@@ -144,6 +144,7 @@ class segment_with_czann(QWidget):
         # add table for model metadata
         self.model_metadata_label = QLabel("Model Metadata")
         self.model_metadata_label.setFont(QFont('Arial', 9, QFont.Normal))
+
         # setting up background color and border
         #self.model_metadata_label.setStyleSheet("background-color: yellow;border: 1px solid black;")
         self.layout().addWidget(self.model_metadata_label)
@@ -182,11 +183,10 @@ class segment_with_czann(QWidget):
         self.viewer.layers.events.inserted.connect(self._reset_layer_options)
         self.viewer.layers.events.removed.connect(self._reset_layer_options)
 
-        # TODO : This checkbox is currently hidden
         # add the checkbox the use the GPU for the inference
-        self.use_gpu_checkbox = CheckBox(name="Use GPU for inference",
-                                         visible=False,
-                                         enabled=False,
+        self.use_gpu_checkbox = CheckBox(name="Use GPU (experimental)",
+                                         visible=True,
+                                         enabled=True,
                                          value=self.use_gpu)
         self.use_gpu_checkbox.clicked.connect(self._use_gpu_changed)
         self.layout().addWidget(self.use_gpu_checkbox.native)
@@ -225,11 +225,11 @@ class segment_with_czann(QWidget):
         )
         combo_row.layout().addWidget(new_layer_combo)
 
-        # saving to a list so we can iterate through all combo boxes to reset choices
+        # saving to a list, so we can iterate through all combo boxes to reset choices
         self.layer_combos.append(new_layer_combo)
         self.layout().addWidget(combo_row)
 
-        # returning the combo box so we know which is which when we click run
+        # returning the combo box, so we know which is which when we click run
         return new_layer_combo
 
     def _read_model_metadata(self):
@@ -345,6 +345,6 @@ class segment_with_czann(QWidget):
         if self.use_gpu_checkbox.value:
             self.use_gpu = True
             print("Use GPU for inference.")
-        if not self.seglabel_dask_checkbox.value:
+        if not self.use_gpu_checkbox.value:
             self.use_gpu = False
             print("Use CPU for inference.")
