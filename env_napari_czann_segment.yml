@@ -16,11 +16,11 @@ dependencies:
   - nb_conda_kernels
 
   - pip:
-      - czmodel
+      - czmodel[pytorch]>=5
       - cztile
       - napari[all]
       - onnxruntime
-      - aicsimageio
+      - aicsimageio[all]
       - aicspylibczi
       - pylibCZIrw
       - napari-aicsimageio
