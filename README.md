@@ -68,7 +68,7 @@ In order to use this plugin the user has to do the following things:
 
 - Adjust the **minimum overlap** for the tiling (optional, see [cztile] for details).
 - Select the **layer** to be segmented.
-- Toggle **Use GPU for inference** checkbox to enable / disable using a GPU (Nvidia) for the segmentation.
+- Toggle **Use GPU for inference** checkbox to enable / disable using a GPU (Nvidia) for the segmentation (experimental feature).
 - Press **Segment Selected Image Layer** to run the segmentation.
 
 ![Napari - Image successfully segmented](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann3.png)

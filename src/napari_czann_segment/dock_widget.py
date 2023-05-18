@@ -183,9 +183,8 @@ class segment_with_czann(QWidget):
         self.viewer.layers.events.inserted.connect(self._reset_layer_options)
         self.viewer.layers.events.removed.connect(self._reset_layer_options)
 
-        # TODO : This checkbox is currently hidden
         # add the checkbox the use the GPU for the inference
-        self.use_gpu_checkbox = CheckBox(name="Use GPU for inference",
+        self.use_gpu_checkbox = CheckBox(name="Use GPU (experimental)",
                                          visible=True,
                                          enabled=True,
                                          value=self.use_gpu)
