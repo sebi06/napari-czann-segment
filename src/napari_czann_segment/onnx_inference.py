@@ -13,6 +13,7 @@ from typing import Tuple, Optional, List, cast
 from types import TracebackType
 
 import numpy as np
+import torch
 import onnxruntime as rt
 
 
@@ -95,9 +96,14 @@ class OnnxInferencer:
             Returns:
                  The predictions for the given batch of images.
             """
+
+            # try to make it run fast with GPU
+            # https://medium.com/neuml/debug-onnx-gpu-performance-c9290fe07459
+
             with ManagedOnnxSession(self._model_path,
-                                    providers=["CUDAExecutionProvider", "CPUExecutionProvider"] if use_gpu else [
+                                    providers=[("CUDAExecutionProvider", {"cudnn_conv_algo_search": "DEFAULT"}), "CPUExecutionProvider"] if use_gpu else [
                                         "CPUExecutionProvider"]) as sess:
+
                 # We predict with a batch size of 1 to not risk memory issues
                 prediction_list = [predict_one(sess, batch_elem) for batch_elem in _x]
 
@@ -138,3 +144,4 @@ class OnnxInferencer:
                     f"The output shape of the model must have four dimensions. Found dimensions: {output_shape}"
                 )
             return cast(Tuple[Optional[int], Optional[int], Optional[int], Optional[int]], output_shape)
+

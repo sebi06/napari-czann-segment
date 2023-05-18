@@ -15,7 +15,10 @@ from aicsimageio import AICSImage
 from pathlib import Path
 import tempfile
 import os
+import torch
 from czmodel.pytorch.convert import DefaultConverter
+import pytest
+from typing import List, Dict, Tuple, Optional, Type, Any, Union, Mapping
 
 
 def test_extract_model():
@@ -56,20 +59,20 @@ def test_extract_model():
     print("\nDone.")
 
 
-def test_ndarray_prediction():
-
-    # get data to test the functionality
-    name_czann = "PGC_20X_nucleus_detector.czann"
-    name_czi = "PGC_20X.ome.tiff"
+@pytest.mark.parametrize(
+    "czann, image, gpu",
+    [
+        ("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", False),
+        #("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", True)
+    ]
+)
+def test_ndarray_prediction(czann: str, image: str, gpu: bool) -> None:
 
     # get the correct file path for the sample data
-    czann_file = get_testdata.get_modelfile(name_czann)
-    image_file = get_testdata.get_imagefile(name_czi)
+    czann_file = get_testdata.get_modelfile(czann)
+    image_file = get_testdata.get_imagefile(image)
 
-    # use the GPU for inference - requires onnxruntime-gpu !!!
-    use_gpu = False
-
-    # read the CZI using AICSImageIO and aicspylibczi
+    # read using AICSImageIO
     aics_img = AICSImage(image_file)
     print("Dimension Original Image:", aics_img.dims)
     print("Array Shape Original Image:", aics_img.shape)
@@ -111,7 +114,7 @@ def test_ndarray_prediction():
     modeldata, seg_complete = predict.predict_ndarray(czann_file,
                                                       img,
                                                       border="auto",
-                                                      use_gpu=use_gpu)
+                                                      use_gpu=gpu)
 
     assert (seg_complete.shape == (1, 1, 1, 2755, 3675))
     assert (seg_complete.ndim == 5)
@@ -122,7 +125,7 @@ def test_ndarray_prediction():
     label_values = list(range(1, len(modeldata.classes) + 1))
 
     lc_min = [0,  0]
-    lc_max = [56, 427]
+    lc_max = [56, 428]
 
     # get individual outputs for all classes from the label image
     for c in range(len(modeldata.classes)):
@@ -138,5 +141,3 @@ def test_ndarray_prediction():
 
     print("Done.")
 
-
-test_ndarray_prediction()

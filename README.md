@@ -5,7 +5,7 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-czann-segment.svg?color=green)](https://python.org)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-czann-segment)](https://napari-hub.org/plugins/napari-czann-segment)
 
-Semantic Segmentation of multi-dimensional images using Deep Learning ONNX models packaged as *.czann files.
+Semantic Segmentation of multidimensional images using Deep Learning ONNX models packaged as *.czann files.
 
 ----------------------------------
 
@@ -27,8 +27,8 @@ The plugin allows you to:
 
 - Use a *.czann file containing the Deep Neural Network (ONNX) for semantic segmentation and metadata
 - Segmentation will be applied per 2D plane for all dimensions
-- Processing larger multi-dimensional images it uses the [cztile] package to chunk the individual 2d arrays using a specific overlap.
-- multi-dimensional images will be processed plane-by-plane
+- Processing larger multidimensional images it uses the [cztile] package to chunk the individual 2d arrays using a specific overlap.
+- multidimensional images will be processed plane-by-plane
 
 ## What does the plugin NOT do
 
@@ -51,7 +51,7 @@ In order to use this plugin the user has to do the following things:
 
 - Open the image using "File - Open Files(s)" (requires [napari-aicsimageio] plugin).
 - Click **napari-czann-segment: Segment with CZANN model** in the "Plugins" menu.
-- **Select a *.czann file** to use the model for segmentation.
+- **Select a czann file** to use the model for segmentation.
 - metadata of the model will be shown (see example below)
 
 | Parameter    | Value                                        | Explanation                                             |
@@ -68,21 +68,25 @@ In order to use this plugin the user has to do the following things:
 
 - Adjust the **minimum overlap** for the tiling (optional, see [cztile] for details).
 - Select the **layer** to be segmented.
+- Toggle **Use GPU for inference** checkbox to enable / disable using a GPU (Nvidia) for the segmentation.
 - Press **Segment Selected Image Layer** to run the segmentation.
 
-![Napari - Image successfully segmented](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann2.png)
+![Napari - Image successfully segmented](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann3.png)
 
-A successful is obviously only the starting point for further image analysis steps to extract the desired numbers from the segmented image. Another example is shown below demonstrating a simple "Grain Size Analysis" using a deep-learning model trained on [APEER] used in [napari]
+A successful is obviously only the starting point for further image analysis steps to extract the desired numbers from the segmented image.
+Another example is shown below demonstrating a simple "Grain Size Analysis" using a deep-learning model trained on [APEER] used in [napari]
 
 ![Napari - Simple Grain Size Analysis](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/grainsize_czann_napari.png)
 
 ### Remarks
 
-> **IMPORTANT**: Currently the plugin only supports using models trained on a **single channel** image. Therefore make sure that during the training on [APEER] or somewhere else the correct inputs images are used.
-> It is quite simple to train an single RGB image, which actually has three channels, load this image in [napari] and notice only then that the model will not work, because the image will 3 channels inside [napari].
+> **IMPORTANT**: Currently the plugin only supports using models trained on a **single channel** image. Therefore, make sure that during the training on [APEER] or somewhere else the correct inputs images are used.
+> It is quite simple to train a single RGB image, which actually has three channels, load this image in [napari] and notice only then that the model will not work, because the image will 3 channels inside [napari].
 
 - Only the CPU will be used for the inference using the ONNX runtime for the [ONNX-CPU] runtime
-- GPUs are not supported yet and will require [ONNX-GPU] runtime
+- GPUs are supported but require the [ONNX-GPU] runtime and the respective CUDA libraries.
+- Please check the [YAML](env_napari_czann_segment.yml) for an example environment with GPU support.
+- See also [pytorch] for instruction on how to install pytorch
 
 ## For developers
 
@@ -98,7 +102,7 @@ Feel free to create a new environment using the [YAML](env_napari_czann_segment.
 
 - **Install the plugin locally**
 
-Please run the the following command:
+Please run the following command:
 
     pip install -e .
 
@@ -140,3 +144,4 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 [ONNX-GPU]: https://pypi.org/project/onnxruntime-gpu/
 [ONNX-CPU]: https://pypi.org/project/onnxruntime/
 [conda]: https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html
+[pytorch]: https://pytorch.org/get-started/locally

@@ -14,6 +14,8 @@ import tempfile
 import itertools
 from typing import List, Tuple, Dict, Union, Any, Optional
 import dask.array as da
+import torch
+import onnxruntime as rt
 from .onnx_inference import OnnxInferencer
 from cztile.fixed_total_area_strategy import AlmostEqualBorderFixedTotalAreaStrategy2D
 from cztile.tiling_strategy import Rectangle as czrect
@@ -23,44 +25,11 @@ from pathlib import Path
 import os
 
 
-def predict_single_tile(tile2d: Union[np.ndarray, da.Array],
-                        inferencer: OnnxInferencer,
-                        do_rescale: bool = True,
-                        use_gpu: bool = False) -> Union[np.ndarray, da.Array]:
-    """Predict a single tile (2d image array) using an OnnxInferencer
-
-    Args:
-        tile2d (Union[np.ndarray, da.Array]): 2d image array
-        inferencer (OnnxInferencer): OnnxInnferencer
-        do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True.
-        use_gpu (bool, optional): use GPU for the prediction. Defaults to False.
-
-    Returns:
-        Union[np.ndarray, da.Array]: segmented 2d image array
-    """
-
-    # make sure a numpy array is used for the prediction
-    if isinstance(tile2d, da.Array):
-        tile2d = tile2d.compute()
-
-    if do_rescale:
-        max_value = np.iinfo(tile2d.dtype).max
-        tile2d = tile2d / (max_value - 1)
-
-    # get the prediction for that tile as a list
-    pred_raw_tile = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)
-
-    # get the labels and add 1 to reflect the real values
-    pred_tile = np.argmax(pred_raw_tile[0], axis=-1) + 1
-
-    return pred_tile
-
-
 def predict_ndarray(czann_file: str,
                     img: Union[np.ndarray, da.Array],
                     border: Union[str, int] = "auto",
                     use_gpu: bool = False) -> Tuple[Any, Union[np.ndarray, da.Array]]:
-    """Run the prediction on a multi-dimensional numpy array
+    """Run the prediction on a multidimensional numpy array
 
     Args:
         czann_file (str): path for the *.czann file containing the ONNX model
@@ -69,7 +38,7 @@ def predict_ndarray(czann_file: str,
         use_gpu (bool, optional): use GPU for the prediction. Defaults to False.
 
     Returns:
-        Tuple[Any, Union[np.ndarray, da.Array]]: Return model metadata and the segmented multi-dimensional array
+        Tuple[Any, Union[np.ndarray, da.Array]]: Return model metadata and the segmented multidimensional array
     """
 
     seg_complete = da.zeros_like(img, chunks=img.shape)
@@ -102,6 +71,9 @@ def predict_ndarray(czann_file: str,
 
         print("Used Minimum BorderSize for Tiling: ", bordersize)
 
+        # create ONNX inferencer once and use it for every tile
+        inf = OnnxInferencer(str(model_path))
+
         # loop over all dimensions
         for idx in prod:
 
@@ -118,6 +90,7 @@ def predict_ndarray(czann_file: str,
             # process the whole 2d image - make sure to use the correct **kwargs
             new_img2d = predict_tiles2d(img2d,
                                         model_path,
+                                        inf=inf,
                                         tile_width=req_tilewidth,
                                         tile_height=req_tileheight,
                                         min_border_width=bordersize,
@@ -131,18 +104,22 @@ def predict_ndarray(czann_file: str,
 
 def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
                     model_path: os.PathLike,
+                    inf: OnnxInferencer,
                     tile_width: int = 1024,
                     tile_height: int = 1024,
                     min_border_width: int = 8,
+                    do_rescale: bool = True,
                     use_gpu: bool = False) -> Union[np.ndarray, da.Array]:
     """Predict a larger 2D image array
 
     Args:
         img2d (Union[np.ndarray, da.Array]): larger 2D image
         model_path (os.PathLike): path to *.czann model file
+        inf (OnnxInferencer): OnnxInferencer class to run the model
         tile_width (int, optional): width of tile required for prediction. Defaults to 1024.
         tile_height (int, optional): height of tile required for prediction. Defaults to 1024.
         min_border_width (int, optional): minimum border width for tiling. Defaults to 8.
+        do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True.
         use_gpu (bool, optional): use GPU for the prediction. Defaults to False.
 
     Raises:
@@ -165,16 +142,25 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
         # create the tiles
         tiles = tiler.tile_rectangle(czrect(x=0, y=0, w=img2d.shape[0], h=img2d.shape[1]))
 
-        # create ONNX inferencer once and use it for every tile
-        inferencer = OnnxInferencer(str(model_path))
-
         # loop over all tiles
         for tile in tqdm(tiles):
+
             # get a single frame based on the roi
             tile2d = img2d[tile.roi.x:tile.roi.x + tile.roi.w, tile.roi.y:tile.roi.y + tile.roi.h]
 
-            # predict a single tile
-            tile2d = predict_single_tile(tile2d, inferencer, use_gpu=use_gpu)
+            # make sure a numpy array is used for the prediction
+            if isinstance(tile2d, da.Array):
+                tile2d = tile2d.compute()
+
+            if do_rescale:
+                max_value = np.iinfo(tile2d.dtype).max
+                tile2d = tile2d / (max_value - 1)
+
+            # get the prediction for a single tile
+            tile2d = inf.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
+
+            # get the labels and add 1 to reflect the real values
+            tile2d = np.argmax(tile2d, axis=-1) + 1
 
             # place result inside the new image
             new_img2d[tile.roi.x:tile.roi.x + tile.roi.w,
