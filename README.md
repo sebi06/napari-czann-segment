@@ -34,7 +34,7 @@ The plugin allows you to:
 
 **Before one can actually use a model it needs to be trained, which is NOT done by this plugin**.
 
-Therer two main ways hwo such a model can be created:
+There are two main ways hwo such a model can be created:
 
 - Train the segmentation model fully automated on [APEER] and download the *.czann file
 - Train your model in a Jupyter notebook etc. and package it using the [czmodel] python package as an *.czann
