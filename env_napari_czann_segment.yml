@@ -5,7 +5,6 @@ channels:
   - nvidia
   - defaults
   - conda-forge
-  - nvidia
 
 dependencies:
   - python=3.9
@@ -14,11 +13,13 @@ dependencies:
   - pip
   - wheel
   - pytorch
+  - torchvision
   - pytorch-cuda=11.7
   - setuptools
   - autopep8
   - nb_conda_kernels
   - pytest
+  - ipyfilechooser
 
   - pip:
       - czmodel[pytorch]>=5
@@ -26,6 +27,9 @@ dependencies:
       - onnxruntime-gpu
       - aicsimageio[all]
       - aicspylibczi
+      - pylibczirw
+      - opencv-python
+      - czitools
       - napari[all]
       - napari-aicsimageio
       - napari-brightness-contrast
