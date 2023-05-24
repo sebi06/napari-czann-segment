@@ -163,17 +163,26 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
                 max_value = np.iinfo(tile2d.dtype).max
                 tile2d = tile2d / (max_value - 1)
 
-            # get the prediction for a single tile
-            tile2d = inf.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
+            if model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
-            if ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
+                # get the prediction for a single tile
+                tile2d = inf.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
 
                 # get the labels and add 1 to reflect the real values
                 tile2d = np.argmax(tile2d, axis=-1) + 1
 
-            # place result inside the new image
-            new_img2d[tile.roi.x:tile.roi.x + tile.roi.w,
-                      tile.roi.y:tile.roi.y + tile.roi.h] = tile2d
+                # place result inside the new image
+                new_img2d[tile.roi.x:tile.roi.x + tile.roi.w,
+                          tile.roi.y:tile.roi.y + tile.roi.h] = tile2d
+                
+            if model_type == ModelType.REGRESSION:
+
+                # get the prediction for a single tile
+                tile2d = inf.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
+
+                # place result inside the new image
+                new_img2d[tile.roi.x:tile.roi.x + tile.roi.w,
+                          tile.roi.y:tile.roi.y + tile.roi.h] = tile2d[..., 0]
 
     else:
         raise tile_has_wrong_dimensionality(img2d.ndim)
