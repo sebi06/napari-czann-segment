@@ -17,6 +17,7 @@ import dask.array as da
 import torch
 import onnxruntime as rt
 from .onnx_inference import OnnxInferencer
+from czmodel import ModelType
 from cztile.fixed_total_area_strategy import AlmostEqualBorderFixedTotalAreaStrategy2D
 from cztile.tiling_strategy import Rectangle as czrect
 from tqdm import tqdm
@@ -37,7 +38,7 @@ def predict_ndarray(czann_file: str,
         img (Union[np.ndarray, da.Array]): multi-dimensional array
         border (Union[str, int], optional): parameter to adjust the bordersize. Defaults to "auto".
         use_gpu (bool, optional): use GPU for the prediction. Defaults to False
-        do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True..
+        do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True.
 
     Returns:
         Tuple[Any, Union[np.ndarray, da.Array]]: Return model metadata and the segmented multidimensional array
@@ -97,7 +98,8 @@ def predict_ndarray(czann_file: str,
                                         tile_height=req_tileheight,
                                         min_border_width=bordersize,
                                         do_rescale=do_rescale,
-                                        use_gpu=use_gpu)
+                                        use_gpu=use_gpu,
+                                        model_type=modelmd.model_type)
 
             # insert new 2D after tile-wise processing into nd array
             seg_complete[tuple(sl)] = new_img2d
@@ -112,7 +114,8 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
                     tile_height: int = 1024,
                     min_border_width: int = 8,
                     do_rescale: bool = True,
-                    use_gpu: bool = False) -> Union[np.ndarray, da.Array]:
+                    use_gpu: bool = False,
+                    model_type: ModelType = ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION) -> Union[np.ndarray, da.Array]:
     """Predict a larger 2D image array
 
     Args:
@@ -124,9 +127,10 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
         min_border_width (int, optional): minimum border width for tiling. Defaults to 8.
         do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True.
         use_gpu (bool, optional): use GPU for the prediction. Defaults to False.
+        model_type (bool, optional): uses Modeltype. Defaults to ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
 
     Raises:
-        tile_has_wrong_dimensionality: _description_
+        tile_has_wrong_dimensionality: raised if a tile has the wrong dimensionality
 
     Returns:
         Union[np.ndarray, da.Array]: segmented larger 2d image
@@ -162,8 +166,10 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
             # get the prediction for a single tile
             tile2d = inf.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
 
-            # get the labels and add 1 to reflect the real values
-            tile2d = np.argmax(tile2d, axis=-1) + 1
+            if ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
+
+                # get the labels and add 1 to reflect the real values
+                tile2d = np.argmax(tile2d, axis=-1) + 1
 
             # place result inside the new image
             new_img2d[tile.roi.x:tile.roi.x + tile.roi.w,
