@@ -28,14 +28,16 @@ import os
 def predict_ndarray(czann_file: str,
                     img: Union[np.ndarray, da.Array],
                     border: Union[str, int] = "auto",
-                    use_gpu: bool = False) -> Tuple[Any, Union[np.ndarray, da.Array]]:
+                    use_gpu: bool = False,
+                    do_rescale: bool = True) -> Tuple[Any, Union[np.ndarray, da.Array]]:
     """Run the prediction on a multidimensional numpy array
 
     Args:
         czann_file (str): path for the *.czann file containing the ONNX model
         img (Union[np.ndarray, da.Array]): multi-dimensional array
         border (Union[str, int], optional): parameter to adjust the bordersize. Defaults to "auto".
-        use_gpu (bool, optional): use GPU for the prediction. Defaults to False.
+        use_gpu (bool, optional): use GPU for the prediction. Defaults to False
+        do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True..
 
     Returns:
         Tuple[Any, Union[np.ndarray, da.Array]]: Return model metadata and the segmented multidimensional array
@@ -94,6 +96,7 @@ def predict_ndarray(czann_file: str,
                                         tile_width=req_tilewidth,
                                         tile_height=req_tileheight,
                                         min_border_width=bordersize,
+                                        do_rescale=do_rescale,
                                         use_gpu=use_gpu)
 
             # insert new 2D after tile-wise processing into nd array

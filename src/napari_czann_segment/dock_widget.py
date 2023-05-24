@@ -7,28 +7,26 @@
 # Disclaimer: This code is purely experimental. Feel free to
 # use it at your own risk.
 #
-# Partially based upon the workshop-demo plugin: https://github.com/DragaDoncila/workshop-demo
-# and the instructions and example found here: https://napari.org/plugins/stable/for_plugin_developers.html
 #
-# Remarks: Requires czmodel[pytorch] >= 5.
+# Remarks: Requires czmodel[pytorch] >= 5.0
 #################################################################
 
 
 import numpy as np
-from napari.layers import Labels, Image
+from napari.layers import Image
 from .process_nd import label_nd
 from .predict import predict_ndarray
 import tempfile
 from pathlib import Path
 from czmodel.pytorch.convert import DefaultConverter
-from typing import Dict, List, Tuple, Union
-from qtpy.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton, QLineEdit, QListWidgetItem,
-                            QVBoxLayout, QWidget, QFileDialog, QDialogButtonBox, QSlider,
-                            QTableWidget, QTableWidgetItem, QSizePolicy)
+from czmodel import ModelType
+from typing import Dict
+from qtpy.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton,
+                            QVBoxLayout, QWidget, QTableWidget, QTableWidgetItem)
 
-from qtpy.QtCore import Qt, Signal, QObject, QEvent, QSize
+from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont
-from magicgui.widgets import FileEdit, PushButton, Slider, Container, Label, CheckBox
+from magicgui.widgets import FileEdit, Slider, CheckBox
 from magicgui.types import FileDialogMode
 
 
@@ -43,7 +41,7 @@ class TableWidget(QWidget):
 
         self.model_table.setShowGrid(True)
         self.model_table.setHorizontalHeaderLabels(["Parameter", "Value"])
-        #self.model_table.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        # self.model_table.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         header = self.model_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft)
         self.layout.addWidget(self.model_table)
@@ -81,23 +79,24 @@ class TableWidget(QWidget):
 
         # update both header items
         fc = (25, 25, 25)
-        #item1 = QtWidgets.QTableWidgetItem("Parameter")
+        # item1 = QtWidgets.QTableWidgetItem("Parameter")
         item1 = QTableWidgetItem("Parameter")
-        #item1.setForeground(QtGui.QColor(25, 25, 25))
+        # item1.setForeground(QtGui.QColor(25, 25, 25))
         item1.setFont(fnt)
         self.model_table.setHorizontalHeaderItem(0, item1)
 
-        #item2 = QtWidgets.QTableWidgetItem("Value")
+        # item2 = QtWidgets.QTableWidgetItem("Value")
         item2 = QTableWidgetItem("Value")
-        #item2.setForeground(QtGui.QColor(25, 25, 25))
+        # item2.setForeground(QtGui.QColor(25, 25, 25))
         item2.setFont(fnt)
         self.model_table.setHorizontalHeaderItem(1, item2)
 
 
 # our manifest widget command points to this class
 class segment_with_czann(QWidget):
-    """Widget allows selection of an Image layer, a model file and the desired border width
-    and returns as many new layers as the segmentation model has classes
+    """Widget allows selection of an Image layer, a model file
+    and the desired border width and returns as many new layers
+    as the segmentation model has classes.
 
     Important: Segmentation is done Slice-by-Slice.
 
@@ -116,13 +115,13 @@ class segment_with_czann(QWidget):
         # set default values
         self.min_overlap: int = 128
         self.model_metadata = None
+        self.model_type = ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
         self.czann_file: str = ""
         self.dnn_tile_width = 1024
         self.dnn_tile_height = 1024
         self.dnn_channel_number = 1
-
-        # Should work now but seems to be slower than using CPU ...
-        self.use_gpu: bool = False
+        self.scaling = (1.0, 1.0)
+        self.use_gpu: bool = True
 
         # create a layout
         self.setLayout(QVBoxLayout())
@@ -146,12 +145,12 @@ class segment_with_czann(QWidget):
         self.model_metadata_label.setFont(QFont('Arial', 9, QFont.Normal))
 
         # setting up background color and border
-        #self.model_metadata_label.setStyleSheet("background-color: yellow;border: 1px solid black;")
+        # self.model_metadata_label.setStyleSheet("background-color: yellow;border: 1px solid black;")
         self.layout().addWidget(self.model_metadata_label)
 
         self.model_metadata_table = TableWidget()
-        #self.model_metadata_table.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
-        #self.model_metadata_table.setFixedSize(QSize(275, 250))
+        # self.model_metadata_table.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.MinimumExpanding)
+        # self.model_metadata_table.setFixedSize(QSize(275, 250))
         self.layout().addWidget(self.model_metadata_table)
 
         # add button for reading the model metadata
@@ -160,15 +159,15 @@ class segment_with_czann(QWidget):
         self.layout().addWidget(self.read_modeldata_btn)
 
         # add label and slider for adjusting the minimum overlap
-        self.min_overlap_label = QLabel("Adjust minimum overlap for Segmentation")
+        self.min_overlap_label = QLabel("Adjust minimum overlap")
         self.min_overlap_slider = Slider(orientation="horizontal",
                                          label="Minimum Overlap",
                                          value=128,
-                                         min=8,
+                                         min=1,
                                          max=256,
                                          step=1,
                                          readout=True,
-                                         tooltip="Adjust the desired minimum overlap",
+                                         tooltip="Adjust the desired min. overlap",
                                          tracking=False)
 
         self.layout().addWidget(self.min_overlap_label)
@@ -192,7 +191,7 @@ class segment_with_czann(QWidget):
         self.layout().addWidget(self.use_gpu_checkbox.native)
 
         # make button for reading the model metadata
-        self.segment_btn = QPushButton("Segment selected Image Layer")
+        self.segment_btn = QPushButton("Segment or Process selected Image Layer")
         self.segment_btn.clicked.connect(self._segment)
         self.layout().addWidget(self.segment_btn)
 
@@ -246,16 +245,18 @@ class segment_with_czann(QWidget):
         self.model_metadata_table.update_style()
         print(self.model_metadata_table.sizeHint())
 
-        # get the values for the minimum overlap and the required input tile size
+        # get the specifiaction from the model metadata
         self.min_overlap = self.model_metadata.min_overlap[0]
         self.min_overlap_slider.value = self.min_overlap
         self.dnn_tile_width = self.model_metadata.input_shape[0]
         self.dnn_tile_height = self.model_metadata.input_shape[1]
         self.dnn_channel_number = self.model_metadata.input_shape[2]
+        self.scaling = self.model_metadata.scaling
+        self.model_type = self.model_metadata.model_type
 
     def _segment(self):
 
-        print("Run the segmentation.")
+        print("Run the segmentation or processing.")
 
         # deactivate the button
         self.segment_btn.isEnabled = False
@@ -264,33 +265,50 @@ class segment_with_czann(QWidget):
         img_layer = self.viewer.layers[self.image_layer_combo.currentText()]
 
         print("CZANN Modelfile:", self.czann_file)
+        print("CZANN ModelType:", self.model_type)
         print("Minimum Tile Overlap:", self.min_overlap)
         print("Use GPU acceleration:", self.use_gpu)
 
-        modeldata, seg_complete = predict_ndarray(self.czann_file,
-                                                  img_layer.data,
-                                                  border=self.min_overlap,
-                                                  use_gpu=self.use_gpu)
+        if self.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
-        # create a list of label values
-        label_values = list(range(1, len(modeldata.classes) + 1))
+            modeldata, seg_complete = predict_ndarray(self.czann_file,
+                                                      img_layer.data,
+                                                      border=self.min_overlap,
+                                                      use_gpu=self.use_gpu,
+                                                      do_rescale=True)
 
-        # get individual outputs for all classes from the label image
-        for c in range(len(modeldata.classes)):
-            # get the pixels for which the value is equal to current class value
-            print("Class Name:", modeldata.classes[c], "Prediction Pixel Value:", c)
+            # create a list of label values
+            label_values = list(range(1, len(modeldata.classes) + 1))
 
-            # get all pixels with a specific value as boolean array, convert to numpy array and label
-            labels_current_class = label_nd(seg_complete,
-                                            labelvalue=label_values[c])
+            # get individual outputs for all classes from the label image
+            for c in range(len(modeldata.classes)):
+                # get the pixels for which the value is equal to current class value
+                print("Class Name:", modeldata.classes[c], "Prediction Pixel Value:", c)
+
+                # get all pixels with a specific value as boolean array, convert to numpy array and label
+                labels_current_class = label_nd(seg_complete,
+                                                labelvalue=label_values[c])
+
+                # add new image layer
+                self.viewer.add_labels(labels_current_class,
+                                       name=f"{img_layer.name}_" + modeldata.classes[c],
+                                       num_colors=256,
+                                       scale=img_layer.scale,
+                                       opacity=0.7,
+                                       blending="translucent")
+
+        if self.model_type == ModelType.REGRESSION:
+
+            modeldata, processed_image = predict_ndarray(self.czann_file,
+                                                         img_layer.data,
+                                                         border=self.min_overlap,
+                                                         use_gpu=self.use_gpu,
+                                                         do_rescale=False)
 
             # add new image layer
-            self.viewer.add_labels(labels_current_class,
-                                   name=f"{img_layer.name}_" + modeldata.classes[c],
-                                   num_colors=256,
-                                   scale=img_layer.scale,
-                                   opacity=0.7,
-                                   blending="translucent")
+            # add channel to napari viewer
+            self.viewer.add_image(processed_image,
+                                  name=f"{img_layer.name}_processed")
 
         # reactivate the button
         self.segment_btn.isEnabled = True

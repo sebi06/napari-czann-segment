@@ -63,10 +63,10 @@ def test_extract_model():
     "czann, image, gpu",
     [
         ("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", False),
-        #("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", True)
+        #("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", True),
     ]
 )
-def test_ndarray_prediction(czann: str, image: str, gpu: bool) -> None:
+def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
 
     # get the correct file path for the sample data
     czann_file = get_testdata.get_modelfile(czann)
@@ -114,7 +114,8 @@ def test_ndarray_prediction(czann: str, image: str, gpu: bool) -> None:
     modeldata, seg_complete = predict.predict_ndarray(czann_file,
                                                       img,
                                                       border="auto",
-                                                      use_gpu=gpu)
+                                                      use_gpu=gpu,
+                                                      do_rescale=True)
 
     assert (seg_complete.shape == (1, 1, 1, 2755, 3675))
     assert (seg_complete.ndim == 5)
@@ -138,6 +139,44 @@ def test_ndarray_prediction(czann: str, image: str, gpu: bool) -> None:
 
         assert (labels_current_class.min().compute() == lc_min[c])
         assert (labels_current_class.max().compute() == lc_max[c])
+
+    print("Done.")
+
+
+@pytest.mark.parametrize(
+    "czann, image, gpu",
+    [
+        ("simple_regmodel.czann", "LowSNR_s001.png", False),
+        #("simple_regmodel.czann", "LowSNR_s001.png", True)
+    ]
+)
+def test_ndarray_prediction_reg(czann: str, image: str, gpu: bool) -> None:
+
+    # get the correct file path for the sample data
+    czann_file = get_testdata.get_modelfile(czann)
+    image_file = get_testdata.get_imagefile(image)
+
+    # read using AICSImageIO
+    aics_img = AICSImage(image_file)
+    print("Dimension Original Image:", aics_img.dims)
+    print("Array Shape Original Image:", aics_img.shape)
+
+    # read the image data as numpy or dask array
+    img = aics_img.get_image_data()
+
+    if img.shape[-1] == 3:
+        img = img[..., 0]
+
+    assert (img.shape == (1, 1, 1, 1024, 1024))
+
+    modeldata, seg_complete = predict.predict_ndarray(czann_file,
+                                                      img,
+                                                      border="auto",
+                                                      use_gpu=gpu,
+                                                      do_rescale=False)
+
+    assert (seg_complete.shape == (1, 1, 1, 1024, 1024))
+    assert (seg_complete.ndim == 5)
 
     print("Done.")
 
