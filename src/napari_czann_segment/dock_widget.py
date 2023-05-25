@@ -308,7 +308,8 @@ class segment_with_czann(QWidget):
             # add new image layer
             # add channel to napari viewer
             self.viewer.add_image(processed_image,
-                                  name=f"{img_layer.name}_processed")
+                                  name=f"{img_layer.name}_processed",
+                                  scale=img_layer.scale)
 
         # reactivate the button
         self.segment_btn.isEnabled = True

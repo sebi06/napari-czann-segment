@@ -144,13 +144,14 @@ def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
 
 
 @pytest.mark.parametrize(
-    "czann, image, gpu",
+    "czann, image, , shape, gpu",
     [
-        ("simple_regmodel.czann", "LowSNR_s001.png", False),
+        ("simple_regmodel.czann", "LowSNR_s001.png", (1, 1, 1, 1024, 1024), False),
+        ("N2V_tobacco_leaf.czann", "tobacco_leaf_WT_small.ome.tiff", (1, 1, 2, 1600, 1600), False)
         #("simple_regmodel.czann", "LowSNR_s001.png", True)
     ]
 )
-def test_ndarray_prediction_reg(czann: str, image: str, gpu: bool) -> None:
+def test_ndarray_prediction_reg(czann: str, image: str, shape: Tuple, gpu: bool) -> None:
 
     # get the correct file path for the sample data
     czann_file = get_testdata.get_modelfile(czann)
@@ -167,7 +168,7 @@ def test_ndarray_prediction_reg(czann: str, image: str, gpu: bool) -> None:
     if img.shape[-1] == 3:
         img = img[..., 0]
 
-    assert (img.shape == (1, 1, 1, 1024, 1024))
+    assert (img.shape == shape)
 
     modeldata, seg_complete = predict.predict_ndarray(czann_file,
                                                       img,
@@ -175,8 +176,7 @@ def test_ndarray_prediction_reg(czann: str, image: str, gpu: bool) -> None:
                                                       use_gpu=gpu,
                                                       do_rescale=False)
 
-    assert (seg_complete.shape == (1, 1, 1, 1024, 1024))
+    assert (seg_complete.shape == shape)
     assert (seg_complete.ndim == 5)
 
     print("Done.")
-
