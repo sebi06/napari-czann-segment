@@ -102,7 +102,7 @@ def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
     assert (aics_img.physical_pixel_sizes.Z == 1.0)
 
     # get the scaling - will be applied to the segmentation outputs
-    #scale = (aics_img.physical_pixel_sizes.X, aics_img.physical_pixel_sizes.Y)
+    # scale = (aics_img.physical_pixel_sizes.X, aics_img.physical_pixel_sizes.Y)
     scale = (scale_x, scale_y)
 
     # read the image data as numpy or dask array

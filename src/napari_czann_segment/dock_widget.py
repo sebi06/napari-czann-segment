@@ -98,7 +98,7 @@ class segment_with_czann(QWidget):
     and the desired border width and returns as many new layers
     as the segmentation model has classes.
 
-    Important: Segmentation is done Slice-by-Slice.
+    Important: Segmentation and processing is done Slice-by-Slice.
 
     """
 

@@ -163,6 +163,7 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
                 max_value = np.iinfo(tile2d.dtype).max
                 tile2d = tile2d / (max_value - 1)
 
+            # run the prediction
             if model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
                 # get the prediction for a single tile
