@@ -63,7 +63,7 @@ def test_extract_model():
     "czann, image, gpu",
     [
         ("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", False),
-        #("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", True),
+        ("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", True),
     ]
 )
 def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
@@ -125,7 +125,7 @@ def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
     # create a list of label values
     label_values = list(range(1, len(modeldata.classes) + 1))
 
-    lc_min = [0,  0]
+    lc_min = [0, 0]
     lc_max = [56, 428]
 
     # get individual outputs for all classes from the label image
@@ -144,14 +144,14 @@ def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
 
 
 @pytest.mark.parametrize(
-    "czann, image, , shape, gpu",
+    "czann, image, shape, gpu",
     [
         ("simple_regmodel.czann", "LowSNR_s001.png", (1, 1, 1, 1024, 1024), False),
-        ("N2V_tobacco_leaf.czann", "tobacco_leaf_WT_small.ome.tiff", (1, 1, 2, 1600, 1600), False)
-        #("simple_regmodel.czann", "LowSNR_s001.png", True)
+        ("N2V_tobacco_leaf.czann", "tobacco_leaf_WT_small.ome.tiff", (1, 1, 2, 1600, 1600), False),
+        ("simple_regmodel.czann", "LowSNR_s001.png", (1, 1, 1, 1024, 1024), True)
     ]
 )
-def test_ndarray_prediction_reg(czann: str, image: str, shape: Tuple, gpu: bool) -> None:
+def test_ndarray_prediction_reg(czann: str, image: str, shape: Tuple[int, int, int, int, int], gpu: bool) -> None:
 
     # get the correct file path for the sample data
     czann_file = get_testdata.get_modelfile(czann)
