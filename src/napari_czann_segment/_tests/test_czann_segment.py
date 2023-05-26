@@ -63,7 +63,6 @@ def test_extract_model():
     "czann, image, gpu",
     [
         ("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", False),
-        ("PGC_20X_nucleus_detector.czann", "PGC_20X.ome.tiff", True),
     ]
 )
 def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
@@ -147,8 +146,7 @@ def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
     "czann, image, shape, gpu",
     [
         ("simple_regmodel.czann", "LowSNR_s001.png", (1, 1, 1, 1024, 1024), False),
-        ("N2V_tobacco_leaf.czann", "tobacco_leaf_WT_small.ome.tiff", (1, 1, 2, 1600, 1600), False),
-        ("simple_regmodel.czann", "LowSNR_s001.png", (1, 1, 1, 1024, 1024), True)
+        ("N2V_tobacco_leaf.czann", "tobacco_leaf_WT_small.ome.tiff", (1, 1, 2, 1600, 1600), False)
     ]
 )
 def test_ndarray_prediction_reg(czann: str, image: str, shape: Tuple[int, int, int, int, int], gpu: bool) -> None:

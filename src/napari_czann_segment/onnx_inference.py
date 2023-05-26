@@ -9,7 +9,7 @@
 #
 #################################################################
 
-from typing import Tuple, Optional, List, cast
+from typing import Tuple, Optional, List, cast, Union, Dict
 from types import TracebackType
 
 import numpy as np
@@ -20,7 +20,7 @@ import onnxruntime as rt
 class ManagedOnnxSession:
     """Context manager for ONNX models."""
 
-    def __init__(self, model_path: str, providers: Optional[List[str]] = None) -> None:
+    def __init__(self, model_path: str, providers: Optional[List[Union[str, Tuple[str, Dict]]]] = None) -> None:
         """Creates an instance of the context manager.
 
         Arguments:
@@ -101,8 +101,9 @@ class OnnxInferencer:
             # https://medium.com/neuml/debug-onnx-gpu-performance-c9290fe07459
 
             with ManagedOnnxSession(self._model_path,
-                                    providers=[("CUDAExecutionProvider", {"cudnn_conv_algo_search": "DEFAULT"}), "CPUExecutionProvider"] if use_gpu else [
-                                        "CPUExecutionProvider"]) as sess:
+                                    providers=[#"TensorrtExecutionProvider",
+                                               ("CUDAExecutionProvider", {"cudnn_conv_algo_search": "DEFAULT"}),
+                                               "CPUExecutionProvider"] if use_gpu else ["CPUExecutionProvider"]) as sess:
 
                 # We predict with a batch size of 1 to not risk memory issues
                 prediction_list = [predict_one(sess, batch_elem) for batch_elem in _x]
