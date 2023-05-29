@@ -168,7 +168,7 @@ class segment_with_czann(QWidget):
 
         # add table for model metadata
         self.model_metadata_label = QLabel("Model Metadata")
-        self.model_metadata_label.setFont(QFont('Arial', 9, QFont.Normal))
+        self.model_metadata_label.setFont(QFont('Arial', 11, QFont.Normal))
 
         # setting up background color and border
         # self.model_metadata_label.setStyleSheet("background-color: yellow;border: 1px solid black;")
