@@ -56,6 +56,7 @@ def setup_log(name, create_logfile=False):
 
     return logger
 
+
 class TableWidget(QWidget):
 
     def __init__(self) -> None:
