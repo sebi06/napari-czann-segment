@@ -17,7 +17,7 @@ import dask.array as da
 import torch
 import onnxruntime as rt
 from .onnx_inference import OnnxInferencer
-from czmodel import ModelType
+from czmodel import ModelType, ModelMetadata
 from cztile.fixed_total_area_strategy import AlmostEqualBorderFixedTotalAreaStrategy2D
 from cztile.tiling_strategy import Rectangle as czrect
 from tqdm import tqdm
@@ -60,10 +60,10 @@ def predict_ndarray(czann_file: str,
         modelmd, model_path = DefaultConverter().unpack_model(model_file=czann_file,
                                                               target_dir=Path(temp_path))
 
-        req_tilewidth = modelmd.input_shape[0]
-        req_tileheight = modelmd.input_shape[1]
+        #req_tilewidth = modelmd.input_shape[0]
+        #req_tileheight = modelmd.input_shape[1]
 
-        print("Used TileSize: ", req_tilewidth, req_tileheight)
+        #print("Used TileSize: ", req_tilewidth, req_tileheight)
 
         # get the used bordersize - is needed for the tiling
         if isinstance(border, str) and border == "auto":
@@ -92,14 +92,13 @@ def predict_ndarray(czann_file: str,
 
             # process the whole 2d image - make sure to use the correct **kwargs
             new_img2d = predict_tiles2d(img2d,
-                                        model_path,
-                                        inf=inf,
-                                        tile_width=req_tilewidth,
-                                        tile_height=req_tileheight,
+                                        model_md=modelmd,
+                                        inferencer=inf,
+                                        #tile_width=req_tilewidth,
+                                        #tile_height=req_tileheight,
                                         min_border_width=bordersize,
                                         do_rescale=do_rescale,
-                                        use_gpu=use_gpu,
-                                        model_type=modelmd.model_type)
+                                        use_gpu=use_gpu)
 
             # insert new 2D after tile-wise processing into nd array
             seg_complete[tuple(sl)] = new_img2d
@@ -108,26 +107,24 @@ def predict_ndarray(czann_file: str,
 
 
 def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
-                    model_path: os.PathLike,
-                    inf: OnnxInferencer,
-                    tile_width: int = 1024,
-                    tile_height: int = 1024,
+                    model_md: ModelMetadata,
+                    inferencer: OnnxInferencer,
+                    #tile_width: int = 1024,
+                    #tile_height: int = 1024,
                     min_border_width: int = 8,
                     do_rescale: bool = True,
-                    use_gpu: bool = False,
-                    model_type: ModelType = ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION) -> Union[np.ndarray, da.Array]:
+                    use_gpu: bool = False) -> Union[np.ndarray, da.Array]:
     """Predict a larger 2D image array
 
     Args:
         img2d (Union[np.ndarray, da.Array]): larger 2D image
-        model_path (os.PathLike): path to *.czann model file
-        inf (OnnxInferencer): OnnxInferencer class to run the model
+        model_md (ModelMetadata): The metadata for this model
+        inferencer (OnnxInferencer): OnnxInferencer class to run the model
         tile_width (int, optional): width of tile required for prediction. Defaults to 1024.
         tile_height (int, optional): height of tile required for prediction. Defaults to 1024.
         min_border_width (int, optional): minimum border width for tiling. Defaults to 8.
         do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True.
         use_gpu (bool, optional): use GPU for the prediction. Defaults to False.
-        model_type (bool, optional): uses Modeltype. Defaults to ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
 
     Raises:
         tile_has_wrong_dimensionality: raised if a tile has the wrong dimensionality
@@ -140,10 +137,12 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
 
         new_img2d = da.zeros_like(img2d, chunks=(img2d.shape[0], img2d.shape[1]))
 
+
         # create a "tile" by specifying the desired tile dimension and the
         # minimum required overlap between tiles (depends on the processing)
-        tiler = AlmostEqualBorderFixedTotalAreaStrategy2D(total_tile_width=tile_width,
-                                                          total_tile_height=tile_height,
+
+        tiler = AlmostEqualBorderFixedTotalAreaStrategy2D(total_tile_width=model_md.input_shape[0],
+                                                          total_tile_height=model_md.input_shape[1],
                                                           min_border_width=min_border_width)
 
         # create the tiles
@@ -164,10 +163,10 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
                 tile2d = tile2d / (max_value - 1)
 
             # run the prediction
-            if model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
+            if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
                 # get the prediction for a single tile
-                tile2d = inf.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
+                tile2d = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
 
                 # get the labels and add 1 to reflect the real values
                 tile2d = np.argmax(tile2d, axis=-1) + 1
@@ -175,11 +174,11 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
                 # place result inside the new image
                 new_img2d[tile.roi.x:tile.roi.x + tile.roi.w,
                           tile.roi.y:tile.roi.y + tile.roi.h] = tile2d
-                
-            if model_type == ModelType.REGRESSION:
+
+            if model_md.model_type == ModelType.REGRESSION:
 
                 # get the prediction for a single tile
-                tile2d = inf.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
+                tile2d = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
 
                 # place result inside the new image
                 new_img2d[tile.roi.x:tile.roi.x + tile.roi.w,
@@ -203,3 +202,4 @@ def tile_has_wrong_dimensionality(num_dim: int) -> ValueError:
     """
 
     return ValueError(f"{str(num_dim)} does not equal 2.")
+

@@ -13,9 +13,12 @@
 
 
 import numpy as np
+import napari
 from napari.layers import Image
-from .process_nd import label_nd
-from .predict import predict_ndarray
+#from .process_nd import label_nd
+#from .predict import predict_ndarray
+from napari_czann_segment.process_nd import label_nd
+from napari_czann_segment.predict import predict_ndarray
 import tempfile
 from pathlib import Path
 from czmodel.pytorch.convert import DefaultConverter
@@ -26,8 +29,9 @@ from qtpy.QtWidgets import (QComboBox, QHBoxLayout, QLabel, QPushButton,
 
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QFont
-from magicgui.widgets import FileEdit, Slider, CheckBox
+from magicgui.widgets import FileEdit, Slider, CheckBox, PushButton
 from magicgui.types import FileDialogMode
+import warnings
 
 
 class TableWidget(QWidget):
@@ -97,6 +101,8 @@ class segment_with_czann(QWidget):
     """Widget allows selection of an Image layer, a model file
     and the desired border width and returns as many new layers
     as the segmentation model has classes.
+    For a regression model is return the processed image. Currently only one
+    output channel is supported for regression models aka "Image-2-Image"
 
     Important: Segmentation and processing is done Slice-by-Slice.
 
@@ -122,6 +128,8 @@ class segment_with_czann(QWidget):
         self.dnn_channel_number = 1
         self.scaling = (1.0, 1.0)
         self.use_gpu: bool = True
+        self.input_shape = (1024, 1014, 1)
+        self.output_shape = (1024, 1024, 2)
 
         # create a layout
         self.setLayout(QVBoxLayout())
@@ -191,9 +199,17 @@ class segment_with_czann(QWidget):
         self.layout().addWidget(self.use_gpu_checkbox.native)
 
         # make button for reading the model metadata
-        self.segment_btn = QPushButton("Segment or Process selected Image Layer")
+        #self.segment_btn = QPushButton("Segment or Process selected Image Layer")
+        #self.segment_btn.isEnabled = False
+        #self.segment_btn.clicked.connect(self._segment)
+        #self.layout().addWidget(self.segment_btn)
+
+        # make button for reading the model metadata
+        self.segment_btn = PushButton(name="Segment or Process selected Image Layer",
+                                      visible=True,
+                                      enabled=False)
         self.segment_btn.clicked.connect(self._segment)
-        self.layout().addWidget(self.segment_btn)
+        self.layout().addWidget(self.segment_btn.native)
 
     def add_image_combo_box(self, label_text):
         """Add combo box with the given image layers as items
@@ -245,7 +261,7 @@ class segment_with_czann(QWidget):
         self.model_metadata_table.update_style()
         print(self.model_metadata_table.sizeHint())
 
-        # get the specifiaction from the model metadata
+        # get the specification from the model metadata
         self.min_overlap = self.model_metadata.min_overlap[0]
         self.min_overlap_slider.value = self.min_overlap
         self.dnn_tile_width = self.model_metadata.input_shape[0]
@@ -253,13 +269,23 @@ class segment_with_czann(QWidget):
         self.dnn_channel_number = self.model_metadata.input_shape[2]
         self.scaling = self.model_metadata.scaling
         self.model_type = self.model_metadata.model_type
+        self.input_shape = self.model_metadata.input_shape
+        self.output_shape = self.model_metadata.output_shape
+
+        # enable the button
+        self.segment_btn.enabled = True
+
+        if self.model_type == ModelType.REGRESSION and self.output_shape[-1] > 1:
+
+            warnings.warn("Only Regression Models with output shape (Y, X, 1) are currently supported.")
+            self.segment_btn.enabled = False
 
     def _segment(self):
 
         print("Run the segmentation or processing.")
 
         # deactivate the button
-        self.segment_btn.isEnabled = False
+        self.segment_btn.enabled = False
 
         # grab the layer using the combo box item text as the layer name
         img_layer = self.viewer.layers[self.image_layer_combo.currentText()]
@@ -312,7 +338,8 @@ class segment_with_czann(QWidget):
                                   scale=img_layer.scale)
 
         # reactivate the button
-        self.segment_btn.isEnabled = True
+        #self.segment_btn.isEnabled = True
+        self.segment_btn.enabled = True
 
     def _update_min_overlap(self):
 
@@ -367,3 +394,8 @@ class segment_with_czann(QWidget):
         if not self.use_gpu_checkbox.value:
             self.use_gpu = False
             print("Use CPU for inference.")
+
+
+if __name__ == "__main__":
+    viewer = napari.Viewer()
+    napari.run()

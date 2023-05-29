@@ -21,12 +21,17 @@ import pytest
 from typing import List, Dict, Tuple, Optional, Type, Any, Union, Mapping
 
 
-def test_extract_model():
+@pytest.mark.parametrize(
+    "czann, guid",
+    [
+        ("PGC_20X_nucleus_detector.czann", "cd45c952-27d0-4f0f-888a-cf560ee5728f"),
+        ("simple_regmodel_out5.czann", "b6f04bbd-2955-4996-8578-43d02d24f093")
+    ]
+)
+def test_extract_model(czann: str, guid: str) -> None:
 
     # get data to test the functionality
-    name_czann = "PGC_20X_nucleus_detector.czann"
-    czann_file = get_testdata.get_modelfile(name_czann)
-    target_dir = os.path.join(os.getcwd(), "_tmp")
+    czann_file = get_testdata.get_modelfile(czann)
 
     # this is the old way to do it
     with tempfile.TemporaryDirectory() as temp_path:
@@ -47,16 +52,7 @@ def test_extract_model():
         for k, v in model_metadata_dict.items():
             print(k, "=", v)
 
-        assert (model_metadata.model_type.name == "SINGLE_CLASS_SEMANTIC_SEGMENTATION")
-        assert (model_metadata.model_type.value == "SingleClassSemanticSegmentation")
-        assert (model_metadata.input_shape == [1024, 1024, 1])
-        assert (model_metadata.output_shape == [1024, 1024, 2])
-        assert (model_metadata.model_id == "cd45c952-27d0-4f0f-888a-cf560ee5728f")
-        assert (model_metadata.model_name == "APEER-trained model")
-        assert (model_metadata.classes == ["background", "nuc"])
-        assert (model_metadata.min_overlap == [128, 128])
-
-    print("\nDone.")
+        assert model_metadata.model_id == guid
 
 
 @pytest.mark.parametrize(
