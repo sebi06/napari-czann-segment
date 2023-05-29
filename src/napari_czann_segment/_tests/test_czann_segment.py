@@ -33,7 +33,6 @@ def test_extract_model(czann: str, guid: str) -> None:
     # get data to test the functionality
     czann_file = get_testdata.get_modelfile(czann)
 
-    # this is the old way to do it
     with tempfile.TemporaryDirectory() as temp_path:
 
         # this is the new way of unpacking using the czann files
