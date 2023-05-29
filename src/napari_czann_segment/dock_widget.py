@@ -32,7 +32,29 @@ from qtpy.QtGui import QFont
 from magicgui.widgets import FileEdit, Slider, CheckBox, PushButton
 from magicgui.types import FileDialogMode
 import warnings
+import logging
+import time
 
+
+def setup_log(name, create_logfile=False):
+
+    # set up a new name for a new logger
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+
+    # define the logging format
+    log_format = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(message)s", datefmt="%d-%b-%y %H:%M:%S")
+
+    if create_logfile:
+
+        filename = f"./test_{name}.log"
+        log_handler = logging.FileHandler(filename)
+        log_handler.setLevel(logging.DEBUG)
+        log_handler.setFormatter(log_format)
+        logger.addHandler(log_handler)
+
+    return logger
 
 class TableWidget(QWidget):
 
@@ -116,20 +138,16 @@ class segment_with_czann(QWidget):
             public proxy for the napari viewer object
         """
         super().__init__()
+
+        self.logger = setup_log("CziMetaData")
+
         self.viewer = napari_viewer
 
         # set default values
-        self.min_overlap: int = 128
+        self.min_overlap_ui: int = 128
         self.model_metadata = None
-        self.model_type = ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
-        self.czann_file: str = ""
-        self.dnn_tile_width = 1024
-        self.dnn_tile_height = 1024
-        self.dnn_channel_number = 1
-        self.scaling = (1.0, 1.0)
+        self.czann_file: str = "mymodel.czann"
         self.use_gpu: bool = True
-        self.input_shape = (1024, 1014, 1)
-        self.output_shape = (1024, 1024, 2)
 
         # create a layout
         self.setLayout(QVBoxLayout())
@@ -175,7 +193,7 @@ class segment_with_czann(QWidget):
                                          max=256,
                                          step=1,
                                          readout=True,
-                                         tooltip="Adjust the desired min. overlap",
+                                         tooltip="Adjust the desired min. TileOverlap",
                                          tracking=False)
 
         self.layout().addWidget(self.min_overlap_label)
@@ -199,10 +217,10 @@ class segment_with_czann(QWidget):
         self.layout().addWidget(self.use_gpu_checkbox.native)
 
         # make button for reading the model metadata
-        #self.segment_btn = QPushButton("Segment or Process selected Image Layer")
-        #self.segment_btn.isEnabled = False
-        #self.segment_btn.clicked.connect(self._segment)
-        #self.layout().addWidget(self.segment_btn)
+        # self.segment_btn = QPushButton("Segment or Process selected Image Layer")
+        # self.segment_btn.setEnabled(False)
+        # self.segment_btn.clicked.connect(self._segment)
+        # self.layout().addWidget(self.segment_btn)
 
         # make button for reading the model metadata
         self.segment_btn = PushButton(name="Segment or Process selected Image Layer",
@@ -259,30 +277,23 @@ class segment_with_czann(QWidget):
         self.model_metadata_dict = self.model_metadata._asdict()
         self.model_metadata_table.update_model_metadata(self.model_metadata_dict)
         self.model_metadata_table.update_style()
-        print(self.model_metadata_table.sizeHint())
+        # self.logger.info(self.model_metadata_table.sizeHint())
 
         # get the specification from the model metadata
-        self.min_overlap = self.model_metadata.min_overlap[0]
-        self.min_overlap_slider.value = self.min_overlap
-        self.dnn_tile_width = self.model_metadata.input_shape[0]
-        self.dnn_tile_height = self.model_metadata.input_shape[1]
-        self.dnn_channel_number = self.model_metadata.input_shape[2]
-        self.scaling = self.model_metadata.scaling
-        self.model_type = self.model_metadata.model_type
-        self.input_shape = self.model_metadata.input_shape
-        self.output_shape = self.model_metadata.output_shape
+        self.min_overlap_ui = self.model_metadata.min_overlap[0]
+        self.min_overlap_slider.value = self.min_overlap_ui
 
         # enable the button
         self.segment_btn.enabled = True
 
-        if self.model_type == ModelType.REGRESSION and self.output_shape[-1] > 1:
+        if self.model_metadata.model_type == ModelType.REGRESSION and self.model_metadata.output_shape[-1] > 1:
 
             warnings.warn("Only Regression Models with output shape (Y, X, 1) are currently supported.")
             self.segment_btn.enabled = False
 
     def _segment(self):
 
-        print("Run the segmentation or processing.")
+        self.logger.info("Run the segmentation or processing.")
 
         # deactivate the button
         self.segment_btn.enabled = False
@@ -290,16 +301,16 @@ class segment_with_czann(QWidget):
         # grab the layer using the combo box item text as the layer name
         img_layer = self.viewer.layers[self.image_layer_combo.currentText()]
 
-        print("CZANN Modelfile:", self.czann_file)
-        print("CZANN ModelType:", self.model_type)
-        print("Minimum Tile Overlap:", self.min_overlap)
-        print("Use GPU acceleration:", self.use_gpu)
+        self.logger.info("CZANN Modelfile: " + self.czann_file)
+        self.logger.info("CZANN ModelType: " + str(self.model_metadata.model_type))
+        self.logger.info("Minimum Tile Overlap: " + str(self.min_overlap_ui))
+        self.logger.info("Use GPU acceleration: " + str(self.use_gpu))
 
-        if self.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
+        if self.model_metadata.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
             modeldata, seg_complete = predict_ndarray(self.czann_file,
                                                       img_layer.data,
-                                                      border=self.min_overlap,
+                                                      border=self.min_overlap_ui,
                                                       use_gpu=self.use_gpu,
                                                       do_rescale=True)
 
@@ -309,11 +320,10 @@ class segment_with_czann(QWidget):
             # get individual outputs for all classes from the label image
             for c in range(len(modeldata.classes)):
                 # get the pixels for which the value is equal to current class value
-                print("Class Name:", modeldata.classes[c], "Prediction Pixel Value:", c)
+                self.logger.info("Class Name: " + modeldata.classes[c] + " Prediction Pixel Value: " + str(c))
 
                 # get all pixels with a specific value as boolean array, convert to numpy array and label
-                labels_current_class = label_nd(seg_complete,
-                                                labelvalue=label_values[c])
+                labels_current_class = label_nd(seg_complete, labelvalue=label_values[c])
 
                 # add new image layer
                 self.viewer.add_labels(labels_current_class,
@@ -323,11 +333,11 @@ class segment_with_czann(QWidget):
                                        opacity=0.7,
                                        blending="translucent")
 
-        if self.model_type == ModelType.REGRESSION:
+        if self.model_metadata.model_type == ModelType.REGRESSION:
 
             modeldata, processed_image = predict_ndarray(self.czann_file,
                                                          img_layer.data,
-                                                         border=self.min_overlap,
+                                                         border=self.min_overlap_ui,
                                                          use_gpu=self.use_gpu,
                                                          do_rescale=False)
 
@@ -338,21 +348,19 @@ class segment_with_czann(QWidget):
                                   scale=img_layer.scale)
 
         # reactivate the button
-        #self.segment_btn.isEnabled = True
         self.segment_btn.enabled = True
 
     def _update_min_overlap(self):
 
         # update in case the slider was adjusted
-        self.min_overlap = self.min_overlap_slider.value
+        self.min_overlap_ui = self.min_overlap_slider.value
         self._check_min_overlap()
-        print("New minimum overlap value: ", self.min_overlap)
 
     def _file_changed(self):
 
         self.czann_file = str(self.filename_edit.value.absolute()
                               ).replace("\\", "/").replace("//", "/")
-        print("Model Path: ", self.czann_file)
+        self.logger.info("Model Path: " + self.czann_file)
 
         # update the model metadata
         self._read_model_metadata()
@@ -377,23 +385,23 @@ class segment_with_czann(QWidget):
     def _check_min_overlap(self):
 
         # Minimum border width must be less than half the tile size.
-        min_tilesize = min(self.dnn_tile_width, self.dnn_tile_height)
+        min_tilesize = min(self.model_metadata.input_shape[0], self.model_metadata.input_shape[1])
 
         # check
-        if self.min_overlap >= np.round(min_tilesize / 2, 0):
-            self.min_overlap = int(np.round(min_tilesize / 2, 0) - 1)
-            print("Minimum border width must be less than half the tile size.")
-            print("Adjusted minimum overlap :", self.min_overlap)
-            self.min_overlap_slider.value = self.min_overlap
+        if self.min_overlap_ui >= np.round(min_tilesize / 2, 0):
+            self.min_overlap_ui = int(np.round(min_tilesize / 2, 0) - 1)
+            self.logger.info("Minimum border width must be less than half the tile size.")
+            self.logger.info("Adjusted minimum overlap : " + self.min_overlap_ui)
+            self.min_overlap_slider.value = self.min_overlap_ui
 
     def _use_gpu_changed(self):
 
         if self.use_gpu_checkbox.value:
             self.use_gpu = True
-            print("Use GPU for inference.")
+            self.logger.info("Use GPU for inference.")
         if not self.use_gpu_checkbox.value:
             self.use_gpu = False
-            print("Use CPU for inference.")
+            self.logger.info("Use CPU for inference.")
 
 
 if __name__ == "__main__":

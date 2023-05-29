@@ -23,7 +23,6 @@ from cztile.tiling_strategy import Rectangle as czrect
 from tqdm import tqdm
 from czmodel.pytorch.convert import DefaultConverter
 from pathlib import Path
-import os
 
 
 def predict_ndarray(czann_file: str,
@@ -60,19 +59,12 @@ def predict_ndarray(czann_file: str,
         modelmd, model_path = DefaultConverter().unpack_model(model_file=czann_file,
                                                               target_dir=Path(temp_path))
 
-        #req_tilewidth = modelmd.input_shape[0]
-        #req_tileheight = modelmd.input_shape[1]
-
-        #print("Used TileSize: ", req_tilewidth, req_tileheight)
-
         # get the used bordersize - is needed for the tiling
         if isinstance(border, str) and border == "auto":
             # we assume same bordersize in XY
             bordersize = modelmd.min_overlap[0]
         else:
             bordersize = border
-
-        print("Used Minimum BorderSize for Tiling: ", bordersize)
 
         # create ONNX inferencer once and use it for every tile
         inf = OnnxInferencer(str(model_path))
@@ -109,8 +101,6 @@ def predict_ndarray(czann_file: str,
 def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
                     model_md: ModelMetadata,
                     inferencer: OnnxInferencer,
-                    #tile_width: int = 1024,
-                    #tile_height: int = 1024,
                     min_border_width: int = 8,
                     do_rescale: bool = True,
                     use_gpu: bool = False) -> Union[np.ndarray, da.Array]:
@@ -136,7 +126,6 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
     if img2d.ndim == 2:
 
         new_img2d = da.zeros_like(img2d, chunks=(img2d.shape[0], img2d.shape[1]))
-
 
         # create a "tile" by specifying the desired tile dimension and the
         # minimum required overlap between tiles (depends on the processing)
@@ -186,8 +175,6 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
 
     else:
         raise tile_has_wrong_dimensionality(img2d.ndim)
-
-    print("Datatype new_img2d", type(new_img2d))
 
     return new_img2d
 
