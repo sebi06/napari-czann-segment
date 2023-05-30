@@ -43,7 +43,8 @@ def predict_ndarray(czann_file: str,
         Tuple[Any, Union[np.ndarray, da.Array]]: Return model metadata and the segmented multidimensional array
     """
 
-    seg_complete = da.zeros_like(img, chunks=img.shape)
+    #seg_complete = da.zeros_like(img, chunks=img.shape)
+    seg_complete = np.zeros_like(img)
 
     # get the shape without the XY dimensions
     shape_woxy = img.shape[:-2]
@@ -86,8 +87,8 @@ def predict_ndarray(czann_file: str,
             new_img2d = predict_tiles2d(img2d,
                                         model_md=modelmd,
                                         inferencer=inf,
-                                        #tile_width=req_tilewidth,
-                                        #tile_height=req_tileheight,
+                                        # tile_width=req_tilewidth,
+                                        # tile_height=req_tileheight,
                                         min_border_width=bordersize,
                                         do_rescale=do_rescale,
                                         use_gpu=use_gpu)
@@ -125,7 +126,8 @@ def predict_tiles2d(img2d: Union[np.ndarray, da.Array],
 
     if img2d.ndim == 2:
 
-        new_img2d = da.zeros_like(img2d, chunks=(img2d.shape[0], img2d.shape[1]))
+        #new_img2d = da.zeros_like(img2d, chunks=(img2d.shape[0], img2d.shape[1]))
+        new_img2d = np.zeros_like(img2d)
 
         # create a "tile" by specifying the desired tile dimension and the
         # minimum required overlap between tiles (depends on the processing)
@@ -189,4 +191,3 @@ def tile_has_wrong_dimensionality(num_dim: int) -> ValueError:
     """
 
     return ValueError(f"{str(num_dim)} does not equal 2.")
-
