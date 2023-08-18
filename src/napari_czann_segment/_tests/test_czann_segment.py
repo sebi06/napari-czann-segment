@@ -113,8 +113,10 @@ def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
 
     assert (seg_complete.shape == (1, 1, 1, 2755, 3675))
     assert (seg_complete.ndim == 5)
-    assert (seg_complete.min().compute() == 1)
-    assert (seg_complete.max().compute() == 2)
+    #assert (seg_complete.min().compute() == 1)
+    #assert (seg_complete.max().compute() == 2)
+    assert (seg_complete.min() == 1)
+    assert (seg_complete.max() == 2)
 
     # create a list of label values
     label_values = list(range(1, len(modeldata.classes) + 1))
@@ -131,8 +133,10 @@ def test_ndarray_prediction_seg(czann: str, image: str, gpu: bool) -> None:
         labels_current_class = process_nd.label_nd(seg_complete,
                                                    labelvalue=label_values[c])
 
-        assert (labels_current_class.min().compute() == lc_min[c])
-        assert (labels_current_class.max().compute() == lc_max[c])
+        #assert (labels_current_class.min().compute() == lc_min[c])
+        #assert (labels_current_class.max().compute() == lc_max[c])
+        assert (labels_current_class.min() == lc_min[c])
+        assert (labels_current_class.max() == lc_max[c])
 
     print("Done.")
 
