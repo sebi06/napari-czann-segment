@@ -23,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     strategy:
       matrix:
-        platform: [windows-latest]
+        platform: [windows-latest, ubuntu-latest]
         python-version: ['3.10']
 
     steps:
