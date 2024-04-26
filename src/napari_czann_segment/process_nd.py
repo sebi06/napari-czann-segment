@@ -16,10 +16,26 @@ import itertools
 from typing import List, NamedTuple, Union, Tuple, Callable
 
 
-def label_nd(seg: Union[np.ndarray, da.Array],
-             labelvalue: int = 0,
-             # output_dask: bool = False,
-             ) -> Union[np.ndarray, da.Array]:
+def label_nd(
+    seg: Union[np.ndarray, da.Array],
+    labelvalue: int = 0,
+    # output_dask: bool = False,
+) -> Union[np.ndarray, da.Array]:
+    """
+    Label the n-dimensional segmentation array.
+
+    Parameters:
+    - seg: Union[np.ndarray, da.Array]
+        The n-dimensional segmentation array.
+    - labelvalue: int (default: 0)
+        The value to be labeled.
+    - output_dask: bool (default: False)
+        Whether to output a dask array.
+
+    Returns:
+    - Union[np.ndarray, da.Array]
+        The labeled n-dimensional array.
+    """
 
     shape_woXY = seg.shape[:-2]
 
