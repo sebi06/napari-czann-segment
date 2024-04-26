@@ -14,8 +14,6 @@ import tempfile
 import itertools
 from typing import List, Tuple, Dict, Union, Any, Optional
 import dask.array as da
-import torch
-import onnxruntime as rt
 from .onnx_inference import OnnxInferencer
 from czmodel import ModelType, ModelMetadata
 from cztile.fixed_total_area_strategy import (
@@ -28,6 +26,10 @@ from czmodel.pytorch.convert import DefaultConverter
 from pathlib import Path
 from .utils import TileMethod, SupportedWindow
 from ryomen import Slicer
+from .utils import setup_log
+
+
+logger = setup_log("Napari-CZANN-predict")
 
 
 def predict_ndarray(
@@ -229,6 +231,7 @@ def predict_tiles2d(
                 model_md.model_type
                 == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
             ):
+                logger.info(f"Using Merging Window: {merge_window_name}")
                 merger = Merger(tiler, window=merge_window_name)
 
                 for tile_id in trange(tiler.n_tiles):

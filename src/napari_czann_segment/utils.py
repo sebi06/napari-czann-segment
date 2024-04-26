@@ -14,8 +14,9 @@ import os
 from pathlib import Path
 from typing import NamedTuple
 import logging
-import configparser
-import datetime
+
+# import configparser
+# import datetime
 from enum import Enum
 
 
@@ -99,9 +100,6 @@ def get_rectangle_from_image(
     return rt
 
 
-from enum import Enum
-
-
 class TileMethod(Enum):
     """
     Enumeration class representing different tiling methods.
@@ -115,9 +113,6 @@ class TileMethod(Enum):
     CZTILE = 1
     TILER = 2
     RYOMEN = 3
-
-
-from enum import Enum
 
 
 class SupportedWindow(Enum):
@@ -138,3 +133,26 @@ class SupportedWindow(Enum):
     barthann = 11
     overlaptile = 12
     none = 13
+
+
+def setup_log(name, create_logfile=False):
+
+    # set up a new name for a new logger
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.INFO)
+
+    # define the logging format
+    log_format = logging.Formatter(
+        "%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%d-%b-%y %H:%M:%S",
+    )
+
+    if create_logfile:
+
+        filename = f"./test_{name}.log"
+        log_handler = logging.FileHandler(filename)
+        log_handler.setLevel(logging.DEBUG)
+        log_handler.setFormatter(log_format)
+        logger.addHandler(log_handler)
+
+    return logger

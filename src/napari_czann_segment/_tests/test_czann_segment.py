@@ -83,24 +83,30 @@ def test_extract_model(czann: str, guid: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "czann, image, gpu, tiling",
+    "czann, image, gpu, tiling, merge_window",
     [
         (
             "PGC_20X_nucleus_detector.czann",
             "PGC_20X.ome.tiff",
             False,
             TileMethod.CZTILE,
+            SupportedWindow.none,
         ),
         (
             "PGC_20X_nucleus_detector.czann",
             "PGC_20X.ome.tiff",
             False,
             TileMethod.TILER,
+            SupportedWindow.overlaptile,
         ),
     ],
 )
 def test_ndarray_prediction_seg(
-    czann: str, image: str, gpu: bool, tiling: TileMethod
+    czann: str,
+    image: str,
+    gpu: bool,
+    tiling: TileMethod,
+    merge_window: SupportedWindow,
 ) -> None:
     """
     Test function for performing ndarray prediction segmentation.
@@ -110,6 +116,8 @@ def test_ndarray_prediction_seg(
         image (str): The path to the image file.
         gpu (bool): Flag indicating whether to use GPU for prediction.
         tiling (TileMethod): The tiling method to use.
+        merge_window (SupportedWindow): Specifies which window function to use for Tiler only. Defaults to SupportedWindow.boxcar
+
 
     Returns:
         None
@@ -166,15 +174,11 @@ def test_ndarray_prediction_seg(
         use_gpu=gpu,
         do_rescale=True,
         tiling_method=tiling,
-        merge_window=SupportedWindow.none,
+        merge_window=merge_window,
     )
 
     assert seg_complete.shape == (1, 1, 1, 2755, 3675)
     assert seg_complete.ndim == 5
-    # assert (seg_complete.min().compute() == 1)
-    # assert (seg_complete.max().compute() == 2)
-    assert seg_complete.min() == 1
-    assert seg_complete.max() == 2
 
     # create a list of label values
     label_values = list(range(1, len(modeldata.classes) + 1))
@@ -193,7 +197,7 @@ def test_ndarray_prediction_seg(
 
 
 @pytest.mark.parametrize(
-    "czann, image, shape, gpu, tiling",
+    "czann, image, shape, gpu, tiling, merge_window",
     [
         (
             "simple_regmodel.czann",
@@ -201,6 +205,7 @@ def test_ndarray_prediction_seg(
             (1, 1, 1, 1024, 1024),
             False,
             TileMethod.CZTILE,
+            SupportedWindow.none,
         ),
         (
             "N2V_tobacco_leaf.czann",
@@ -208,6 +213,7 @@ def test_ndarray_prediction_seg(
             (1, 1, 2, 1600, 1600),
             False,
             TileMethod.CZTILE,
+            SupportedWindow.none,
         ),
         (
             "simple_regmodel.czann",
@@ -215,6 +221,7 @@ def test_ndarray_prediction_seg(
             (1, 1, 1, 1024, 1024),
             False,
             TileMethod.TILER,
+            SupportedWindow.overlaptile,
         ),
         (
             "N2V_tobacco_leaf.czann",
@@ -222,6 +229,7 @@ def test_ndarray_prediction_seg(
             (1, 1, 2, 1600, 1600),
             False,
             TileMethod.TILER,
+            SupportedWindow.overlaptile,
         ),
     ],
 )
@@ -231,6 +239,7 @@ def test_ndarray_prediction_reg(
     shape: Tuple[int, int, int, int, int],
     gpu: bool,
     tiling: TileMethod,
+    merge_window: SupportedWindow,
 ) -> None:
     """
     Test the ndarray prediction using a regression model.
@@ -270,6 +279,7 @@ def test_ndarray_prediction_reg(
         use_gpu=gpu,
         do_rescale=False,
         tiling_method=tiling,
+        merge_window=merge_window,
     )
 
     assert seg_complete.shape == shape

@@ -11,13 +11,9 @@
 # Remarks: Requires czmodel[pytorch] >= 5.0
 #################################################################
 
-
 import numpy as np
 import napari
 from napari.layers import Image
-
-# from .process_nd import label_nd
-# from .predict import predict_ndarray
 from napari_czann_segment.process_nd import label_nd
 from napari_czann_segment.predict import predict_ndarray
 from napari_czann_segment.utils import TileMethod, SupportedWindow
@@ -42,37 +38,58 @@ from qtpy.QtGui import QFont
 from magicgui.widgets import FileEdit, Slider, CheckBox, PushButton, ComboBox
 from magicgui.types import FileDialogMode
 import warnings
-import logging
-import time
+
+# import logging
+from .utils import setup_log
 
 
-def setup_log(name, create_logfile=False):
+# def setup_log(name, create_logfile=False):
 
-    # set up a new name for a new logger
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.INFO)
+#     # set up a new name for a new logger
+#     logger = logging.getLogger(name)
+#     logger.setLevel(logging.INFO)
 
-    # define the logging format
-    log_format = logging.Formatter(
-        "%(asctime)s - %(levelname)s - %(message)s",
-        datefmt="%d-%b-%y %H:%M:%S",
-    )
+#     # define the logging format
+#     log_format = logging.Formatter(
+#         "%(asctime)s - %(levelname)s - %(message)s",
+#         datefmt="%d-%b-%y %H:%M:%S",
+#     )
 
-    if create_logfile:
+#     if create_logfile:
 
-        filename = f"./test_{name}.log"
-        log_handler = logging.FileHandler(filename)
-        log_handler.setLevel(logging.DEBUG)
-        log_handler.setFormatter(log_format)
-        logger.addHandler(log_handler)
+#         filename = f"./test_{name}.log"
+#         log_handler = logging.FileHandler(filename)
+#         log_handler.setLevel(logging.DEBUG)
+#         log_handler.setFormatter(log_format)
+#         logger.addHandler(log_handler)
 
-    return logger
+#     return logger
 
 
 class TableWidget(QWidget):
+    """
+    A custom widget that displays a table with parameter-value pairs.
+
+    This widget provides methods to update the table with metadata entries and
+    update the style of the table.
+
+    Attributes:
+        layout (QVBoxLayout): The layout of the widget.
+        model_table (QTableWidget): The table widget that displays the parameter-value pairs.
+    """
 
     def __init__(self) -> None:
+        """
+        Initialize the DockWidget.
 
+        This method sets up the layout and initializes the QTableWidget.
+
+        Parameters:
+        None
+
+        Returns:
+        None
+        """
         super(QWidget, self).__init__()
 
         self.layout = QVBoxLayout(self)
@@ -80,14 +97,20 @@ class TableWidget(QWidget):
 
         self.model_table.setShowGrid(True)
         self.model_table.setHorizontalHeaderLabels(["Parameter", "Value"])
-        # self.model_table.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
         header = self.model_table.horizontalHeader()
         header.setDefaultAlignment(Qt.AlignLeft)
         self.layout.addWidget(self.model_table)
 
     def update_model_metadata(self, md_dict: Dict) -> None:
+        """
+        Update the table with metadata entries.
 
-        # number of rows is set to number of metadata entries
+        Args:
+            md_dict (Dict): A dictionary containing the metadata entries.
+
+        Returns:
+            None
+        """
         row_count = len(md_dict)
         col_count = 2
         self.model_table.setColumnCount(col_count)
@@ -95,7 +118,6 @@ class TableWidget(QWidget):
 
         row = 0
 
-        # update the table with the entries from metadata dictionary
         for key, value in md_dict.items():
             newkey = QTableWidgetItem(key)
             self.model_table.setItem(row, 0, newkey)
@@ -103,30 +125,31 @@ class TableWidget(QWidget):
             self.model_table.setItem(row, 1, newvalue)
             row += 1
 
-        # fit columns and rows to content
         self.model_table.resizeColumnsToContents()
         self.model_table.resizeRowsToContents()
         self.model_table.adjustSize()
 
     def update_style(self) -> None:
+        """
+        Update the style of the table.
 
-        # define font size and type
+        This method sets the font size, type, and color of the header items.
+
+        Returns:
+            None
+        """
         fnt = QFont()
         fnt.setPointSize(8)
         fnt.setBold(True)
         fnt.setFamily("Arial")
 
-        # update both header items
         fc = (25, 25, 25)
-        # item1 = QtWidgets.QTableWidgetItem("Parameter")
+
         item1 = QTableWidgetItem("Parameter")
-        # item1.setForeground(QtGui.QColor(25, 25, 25))
         item1.setFont(fnt)
         self.model_table.setHorizontalHeaderItem(0, item1)
 
-        # item2 = QtWidgets.QTableWidgetItem("Value")
         item2 = QTableWidgetItem("Value")
-        # item2.setForeground(QtGui.QColor(25, 25, 25))
         item2.setFont(fnt)
         self.model_table.setHorizontalHeaderItem(1, item2)
 
@@ -145,6 +168,7 @@ class segment_with_czann(QWidget):
 
     def __init__(self, napari_viewer):
         """Initialize widget
+
         Parameters
         ----------
         napari_viewer : napari.utils._proxies.PublicOnlyProxy
@@ -316,8 +340,9 @@ class segment_with_czann(QWidget):
 
         This method extracts the model information and path from the czann_file,
         unpacks the model using DefaultConverter, and stores the model metadata
-        and dictionary representation of the metadata. It also updates the model
-        metadata table, sets the min_overlap_ui and min_overlap_slider values,
+        and dictionary representation of the metadata.
+
+        It also updates the model metadata table, sets the min_overlap_ui and min_overlap_slider values,
         enables/disables certain buttons and sliders based on the tiling_method,
         and displays a warning if the model type is regression with output shape
         (Y, X, 1).
