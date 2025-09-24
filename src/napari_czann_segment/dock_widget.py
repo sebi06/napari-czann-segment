@@ -198,9 +198,7 @@ class segment_with_czann(QWidget):
         model_extension = "*.czann"
 
         # create the FileEdit widget and add to the layout and connect it
-        self.filename_edit = FileEdit(
-            mode=FileDialogMode.EXISTING_FILE, value="", filter=model_extension
-        )
+        self.filename_edit = FileEdit(mode=FileDialogMode.EXISTING_FILE, value="", filter=model_extension)
 
         self.layout().addWidget(self.filename_edit.native)
         self.filename_edit.line_edit.changed.connect(self._file_changed)
@@ -244,9 +242,7 @@ class segment_with_czann(QWidget):
 
         # add tiling options
         self.tiling_method_label = QLabel("Tiling Method")
-        self.tiling_method_edit = ComboBox(
-            value=TileMethod.CZTILE, choices=TileMethod
-        )
+        self.tiling_method_edit = ComboBox(value=TileMethod.CZTILE, choices=TileMethod)
         self.tiling_method_edit.enabled = False
         self.layout().addWidget(self.tiling_method_label)
         self.layout().addWidget(self.tiling_method_edit.native)
@@ -254,9 +250,7 @@ class segment_with_czann(QWidget):
 
         # add merge window options
         self.merge_method_label = QLabel("Merge Method (Tiler)")
-        self.merge_method_edit = ComboBox(
-            value=SupportedWindow.none, choices=SupportedWindow
-        )
+        self.merge_method_edit = ComboBox(value=SupportedWindow.none, choices=SupportedWindow)
         self.merge_method_edit.enabled = False
         self.layout().addWidget(self.merge_method_label)
         self.layout().addWidget(self.merge_method_edit.native)
@@ -319,13 +313,7 @@ class segment_with_czann(QWidget):
 
         new_layer_combo = QComboBox(self)
         # only adding labels layers
-        new_layer_combo.addItems(
-            [
-                layer.name
-                for layer in self.viewer.layers
-                if isinstance(layer, Image)
-            ]
-        )
+        new_layer_combo.addItems([layer.name for layer in self.viewer.layers if isinstance(layer, Image)])
         combo_row.layout().addWidget(new_layer_combo)
 
         # saving to a list, so we can iterate through all combo boxes to reset choices
@@ -353,15 +341,11 @@ class segment_with_czann(QWidget):
             (
                 self.model_metadata,
                 self.model_path,
-            ) = DefaultConverter().unpack_model(
-                model_file=self.czann_file, target_dir=Path(temp_path)
-            )
+            ) = DefaultConverter().unpack_model(model_file=self.czann_file, target_dir=Path(temp_path))
 
         # get model metadata as dictionary
         self.model_metadata_dict = self.model_metadata._asdict()
-        self.model_metadata_table.update_model_metadata(
-            self.model_metadata_dict
-        )
+        self.model_metadata_table.update_model_metadata(self.model_metadata_dict)
         self.model_metadata_table.update_style()
         # self.logger.info(self.model_metadata_table.sizeHint())
 
@@ -386,14 +370,9 @@ class segment_with_czann(QWidget):
             self.merge_method_edit.enabled = False
             self.merge_method = SupportedWindow.none
 
-        if (
-            self.model_metadata.model_type == ModelType.REGRESSION
-            and self.model_metadata.output_shape[-1] > 1
-        ):
+        if self.model_metadata.model_type == ModelType.REGRESSION and self.model_metadata.output_shape[-1] > 1:
 
-            warnings.warn(
-                "Only Regression Models with output shape (Y, X, 1) are currently supported."
-            )
+            warnings.warn("Only Regression Models with output shape (Y, X, 1) are currently supported.")
             self.segment_btn.enabled = False
 
     def _segment(self):
@@ -416,16 +395,11 @@ class segment_with_czann(QWidget):
         img_layer = self.viewer.layers[self.image_layer_combo.currentText()]
 
         self.logger.info("CZANN Modelfile: " + self.czann_file)
-        self.logger.info(
-            "CZANN ModelType: " + str(self.model_metadata.model_type)
-        )
+        self.logger.info("CZANN ModelType: " + str(self.model_metadata.model_type))
         self.logger.info("Minimum Tile Overlap: " + str(self.min_overlap_ui))
         self.logger.info("Use GPU acceleration: " + str(self.use_gpu))
 
-        if (
-            self.model_metadata.model_type
-            == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
-        ):
+        if self.model_metadata.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
             modeldata, seg_complete = predict_ndarray(
                 self.czann_file,
@@ -446,23 +420,16 @@ class segment_with_czann(QWidget):
             # get individual outputs for all classes from the label image
             for c in range(len(modeldata.classes)):
                 # get the pixels for which the value is equal to current class value
-                self.logger.info(
-                    "Class Name: "
-                    + modeldata.classes[c]
-                    + " Prediction Pixel Value: "
-                    + str(c)
-                )
+                self.logger.info("Class Name: " + modeldata.classes[c] + " Prediction Pixel Value: " + str(c))
 
                 # get all pixels with a specific value as boolean array, convert to numpy array and label
-                labels_current_class = label_nd(
-                    seg_complete, labelvalue=label_values[c]
-                )
+                labels_current_class = label_nd(seg_complete, labelvalue=label_values[c])
 
                 # add new image layer
                 self.viewer.add_labels(
                     labels_current_class,
                     name=f"{img_layer.name}_" + modeldata.classes[c],
-                    num_colors=256,
+                    # num_colors=256,
                     scale=img_layer.scale,
                     opacity=0.7,
                     blending="translucent",
@@ -511,11 +478,7 @@ class segment_with_czann(QWidget):
         replaces backslashes with forward slashes, and logs the model path.
         It also updates the model metadata by calling the `_read_model_metadata` method.
         """
-        self.czann_file = (
-            str(self.filename_edit.value.absolute())
-            .replace("\\", "/")
-            .replace("//", "/")
-        )
+        self.czann_file = str(self.filename_edit.value.absolute()).replace("\\", "/").replace("//", "/")
         self.logger.info("Model Path: " + self.czann_file)
 
         # update the model metadata
@@ -530,13 +493,7 @@ class segment_with_czann(QWidget):
         """
         for combo in self.layer_combos:
             combo.clear()
-            combo.addItems(
-                [
-                    layer.name
-                    for layer in self.viewer.layers
-                    if isinstance(layer, Image)
-                ]
-            )
+            combo.addItems([layer.name for layer in self.viewer.layers if isinstance(layer, Image)])
 
     def _check_min_overlap(self):
         """
@@ -558,12 +515,8 @@ class segment_with_czann(QWidget):
         # check
         if self.min_overlap_ui >= np.round(min_tilesize / 2, 0):
             self.min_overlap_ui = int(np.round(min_tilesize / 2, 0) - 1)
-            self.logger.info(
-                "Minimum border width must be less than half the tile size."
-            )
-            self.logger.info(
-                "Adjusted minimum overlap : " + self.min_overlap_ui
-            )
+            self.logger.info("Minimum border width must be less than half the tile size.")
+            self.logger.info("Adjusted minimum overlap : " + self.min_overlap_ui)
             self.min_overlap_slider.value = self.min_overlap_ui
 
     def _use_gpu_changed(self):
