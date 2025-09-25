@@ -134,38 +134,31 @@ def test_ndarray_prediction_seg(
     scale_x = 1.0
     scale_y = 1.0
 
-    if aics_img.physical_pixel_sizes.X is not None:
-        scale_x = aics_img.physical_pixel_sizes.X
+    # Get physical pixel sizes using the correct API
+    pixel_sizes = aics_img.get_physical_pixel_size()
+    if pixel_sizes and len(pixel_sizes) >= 2:
+        scale_x = pixel_sizes[0] if pixel_sizes[0] is not None else 1.0
+        scale_y = pixel_sizes[1] if pixel_sizes[1] is not None else 1.0
 
-    if aics_img.physical_pixel_sizes.X is None:
-        scale_x = 1.0
+    # Check dimensions and shape
+    assert aics_img.dims == "STCZYX"
+    assert aics_img.shape == (1, 1, 1, 1, 2755, 3675)
 
-    if aics_img.physical_pixel_sizes.Y is not None:
-        scale_y = aics_img.physical_pixel_sizes.Y
-
-    if aics_img.physical_pixel_sizes.X is None:
-        scale_y = 1.0
-
-    assert aics_img.dims._dims_shape == {
-        "T": 1,
-        "C": 1,
-        "Z": 1,
-        "Y": 2755,
-        "X": 3675,
-    }
-    assert aics_img.physical_pixel_sizes.X == 0.227
-    assert aics_img.physical_pixel_sizes.Y == 0.227
-    assert aics_img.physical_pixel_sizes.Z == 1.0
+    # Test the physical pixel sizes using the correct API
+    pixel_sizes = aics_img.get_physical_pixel_size()
+    assert pixel_sizes[0] == 0.227  # X
+    assert pixel_sizes[1] == 0.227  # Y
+    assert pixel_sizes[2] == 1.0  # Z
 
     # get the scaling - will be applied to the segmentation outputs
-    # scale = (aics_img.physical_pixel_sizes.X, aics_img.physical_pixel_sizes.Y)
+    # scale = (pixel_sizes[0], pixel_sizes[1])
     # scale = (scale_x, scale_y)
 
     # read the image data as numpy or dask array
     img = aics_img.get_image_data()
     # img = aics_img.get_image_dask_data()
 
-    assert img.shape == (1, 1, 1, 2755, 3675)
+    assert img.shape == (1, 1, 1, 1, 2755, 3675)
 
     modeldata, seg_complete = predict.predict_ndarray(
         czann_file,
@@ -177,8 +170,8 @@ def test_ndarray_prediction_seg(
         merge_window=merge_window,
     )
 
-    assert seg_complete.shape == (1, 1, 1, 2755, 3675)
-    assert seg_complete.ndim == 5
+    assert seg_complete.shape == (1, 1, 1, 1, 2755, 3675)
+    assert seg_complete.ndim == 6  # Updated from 5 to 6 dimensions
 
     # create a list of label values
     label_values = list(range(1, len(modeldata.classes) + 1))
@@ -198,7 +191,7 @@ def test_ndarray_prediction_seg(
         (
             "simple_regmodel.czann",
             "LowSNR_s001.png",
-            (1, 1, 1, 1024, 1024),
+            (1, 1, 1, 1, 1024, 1024),  # Updated to include extra dimension
             False,
             TileMethod.CZTILE,
             SupportedWindow.none,
@@ -206,7 +199,7 @@ def test_ndarray_prediction_seg(
         (
             "N2V_tobacco_leaf.czann",
             "tobacco_leaf_WT_small.ome.tiff",
-            (1, 1, 2, 1600, 1600),
+            (1, 1, 1, 2, 1600, 1600),  # Updated to include extra dimension
             False,
             TileMethod.CZTILE,
             SupportedWindow.none,
@@ -214,7 +207,7 @@ def test_ndarray_prediction_seg(
         (
             "simple_regmodel.czann",
             "LowSNR_s001.png",
-            (1, 1, 1, 1024, 1024),
+            (1, 1, 1, 1, 1024, 1024),  # Updated to include extra dimension
             False,
             TileMethod.TILER,
             SupportedWindow.overlaptile,
@@ -222,7 +215,7 @@ def test_ndarray_prediction_seg(
         (
             "N2V_tobacco_leaf.czann",
             "tobacco_leaf_WT_small.ome.tiff",
-            (1, 1, 2, 1600, 1600),
+            (1, 1, 1, 2, 1600, 1600),  # Updated to include extra dimension
             False,
             TileMethod.TILER,
             SupportedWindow.overlaptile,
@@ -280,7 +273,7 @@ def test_ndarray_prediction_reg(
     )
 
     assert seg_complete.shape == shape
-    assert seg_complete.ndim == 5
+    assert seg_complete.ndim == 6  # Updated from 5 to 6 dimensions
 
     print("Done.")
 
