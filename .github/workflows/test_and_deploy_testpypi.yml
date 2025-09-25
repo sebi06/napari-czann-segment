@@ -59,8 +59,8 @@ jobs:
       - name: Install Microsoft Visual C++ Redistributable
         if: runner.os == 'Windows'
         run: |
-          choco install vcredist2015to2022 -y
-        shell: cmd
+          curl -L -o vc_redist.x64.exe https://aka.ms/vs/17/release/vc_redist.x64.exe
+          .\vc_redist.x64.exe /install /quiet /norestart
 
       # note: if you need dependencies from conda, considering using
       # setup-miniconda: https://github.com/conda-incubator/setup-miniconda
