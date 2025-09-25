@@ -12,6 +12,7 @@
 from napari_czann_segment import get_testdata
 from napari_czann_segment.dock_widget import setup_log
 from napari_czann_segment import predict, process_nd
+from napari_czann_segment.onnx_inference import ONNXRUNTIME_AVAILABLE
 from aicsimageio import AICSImage
 from pathlib import Path
 import tempfile
@@ -63,9 +64,7 @@ def test_extract_model(czann: str, guid: str) -> None:
     with tempfile.TemporaryDirectory() as temp_path:
 
         # this is the new way of unpacking using the czann files
-        model_metadata, model_path = DefaultConverter().unpack_model(
-            model_file=czann_file, target_dir=Path(temp_path)
-        )
+        model_metadata, model_path = DefaultConverter().unpack_model(model_file=czann_file, target_dir=Path(temp_path))
 
         # show model metadata
         print(model_metadata, "\n")
@@ -101,6 +100,7 @@ def test_extract_model(czann: str, guid: str) -> None:
         ),
     ],
 )
+@pytest.mark.skipif(not ONNXRUNTIME_AVAILABLE, reason="onnxruntime not available in CI environment")
 def test_ndarray_prediction_seg(
     czann: str,
     image: str,
@@ -186,14 +186,10 @@ def test_ndarray_prediction_seg(
     # get individual outputs for all classes from the label image
     for c in range(len(modeldata.classes)):
         # get the pixels for which the value is equal to current class value
-        print(
-            "Class Name:", modeldata.classes[c], "Prediction Pixel Value:", c
-        )
+        print("Class Name:", modeldata.classes[c], "Prediction Pixel Value:", c)
 
         # get all pixels with a specific value as boolean array, convert to numpy array and label
-        labels_current_class = process_nd.label_nd(
-            seg_complete, labelvalue=label_values[c]
-        )
+        labels_current_class = process_nd.label_nd(seg_complete, labelvalue=label_values[c])
 
 
 @pytest.mark.parametrize(
@@ -233,6 +229,7 @@ def test_ndarray_prediction_seg(
         ),
     ],
 )
+@pytest.mark.skipif(not ONNXRUNTIME_AVAILABLE, reason="onnxruntime not available in CI environment")
 def test_ndarray_prediction_reg(
     czann: str,
     image: str,
