@@ -59,7 +59,7 @@ jobs:
       - name: Install Microsoft Visual C++ Redistributable
         if: runner.os == 'Windows'
         run: |
-          choco install vcredist2019 -y
+          choco install vcredist2015to2022 -y
         shell: cmd
 
       # note: if you need dependencies from conda, considering using
