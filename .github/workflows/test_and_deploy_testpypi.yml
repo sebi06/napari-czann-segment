@@ -71,10 +71,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install setuptools tox tox-gh-actions pytest pytest-cov pytest-qt
 
-    # may try this as well     
-      - name: Install onnxruntime-cpu for Windows
+      # this should work inside CI environments    
+      - name: Install onnxruntime-gpu for Windows
         if: runner.os == 'Windows'
-        run: python -m pip install onnxruntime-cpu
+        run: python -m pip install onnxruntime-gpu==1.19.0
 
       - name: Set Qt environment for headless testing
         run: |
