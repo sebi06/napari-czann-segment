@@ -56,6 +56,12 @@ jobs:
         if: runner.os == 'Windows'
         run: echo "$PWD/mesa" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
 
+      - name: Install Microsoft Visual C++ Redistributable
+        if: runner.os == 'Windows'
+        run: |
+          choco install vcredist2019 -y
+          shell: cmd
+
       # note: if you need dependencies from conda, considering using
       # setup-miniconda: https://github.com/conda-incubator/setup-miniconda
       # and
