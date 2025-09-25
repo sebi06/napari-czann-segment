@@ -9,12 +9,27 @@
 #
 #################################################################
 
-from typing import Tuple, Optional, List, cast, Union, Dict
+from typing import Tuple, Optional, List, cast, Union, Dict, Any
 from types import TracebackType
 
 import numpy as np
 import torch
-import onnxruntime as rt
+
+# Handle onnxruntime import gracefully for CI environments
+try:
+    import onnxruntime as rt
+
+    ONNXRUNTIME_AVAILABLE = True
+except ImportError:
+    # In CI environments, we might have DLL loading issues
+    # Create a mock for basic functionality
+    class MockOnnxRuntime:
+        @staticmethod
+        def InferenceSession(*args, **kwargs):
+            raise ImportError("onnxruntime not available in CI environment")
+
+    rt = MockOnnxRuntime()
+    ONNXRUNTIME_AVAILABLE = False
 
 
 class ManagedOnnxSession:
@@ -54,16 +69,20 @@ class ManagedOnnxSession:
         self._model_path = model_path
         self.providers = providers
 
-    def __enter__(self) -> rt.InferenceSession:
+        # Check if onnxruntime is available during initialization
+        if not ONNXRUNTIME_AVAILABLE:
+            raise ImportError(
+                "onnxruntime is not available in this environment. " "This is likely due to missing dependencies in CI."
+            )
+
+    def __enter__(self) -> Any:
         """Creates an ONNX inference session and returns it.
 
         Returns:
             rt.InferenceSession: The created ONNX inference session.
 
         """
-        self._session = rt.InferenceSession(
-            self._model_path, providers=self.providers
-        )
+        self._session = rt.InferenceSession(self._model_path, providers=self.providers)
         return self._session
 
     def __exit__(
@@ -95,9 +114,7 @@ class OnnxInferencer:
         super().__init__()
         self._model_path = model_path
 
-    def predict(
-        self, x: List[np.ndarray], use_gpu: bool = False
-    ) -> List[np.ndarray]:
+    def predict(self, x: List[np.ndarray], use_gpu: bool = False) -> List[np.ndarray]:
         """Evaluates the underlying model with the given input _data.
 
         Arguments:
@@ -108,9 +125,7 @@ class OnnxInferencer:
             The prediction for the given input _data.
         """
 
-        def predict_one(
-            sess: rt.InferenceSession, batch_elem: np.ndarray
-        ) -> np.ndarray:
+        def predict_one(sess: Any, batch_elem: np.ndarray) -> np.ndarray:
             """Predicts with a batch size of 1 to not risk memory issues.
 
             Arguments:
@@ -130,14 +145,10 @@ class OnnxInferencer:
             result = sess.run([output_name], input_dict)[0]
 
             if len(result) != 1:
-                raise AssertionError(
-                    "The batch size has changed during ANN model execution"
-                )
+                raise AssertionError("The batch size has changed during ANN model execution")
             return result[0]
 
-        def _predict_batch(
-            _x: List[np.ndarray], use_gpu: bool = True
-        ) -> List[np.ndarray]:
+        def _predict_batch(_x: List[np.ndarray], use_gpu: bool = True) -> List[np.ndarray]:
             """Run prediction on a batch of images.
 
             Arguments:
@@ -167,9 +178,7 @@ class OnnxInferencer:
             ) as sess:
 
                 # We predict with a batch size of 1 to not risk memory issues
-                prediction_list = [
-                    predict_one(sess, batch_elem) for batch_elem in _x
-                ]
+                prediction_list = [predict_one(sess, batch_elem) for batch_elem in _x]
 
                 return prediction_list
 
@@ -183,13 +192,8 @@ class OnnxInferencer:
         Returns:
             The expected input shape.
         """
-        with ManagedOnnxSession(
-            self._model_path, providers=["CPUExecutionProvider"]
-        ) as sess:
-            input_shape = tuple(
-                elem if isinstance(elem, int) else None
-                for elem in sess.get_inputs()[0].shape
-            )
+        with ManagedOnnxSession(self._model_path, providers=["CPUExecutionProvider"]) as sess:
+            input_shape = tuple(elem if isinstance(elem, int) else None for elem in sess.get_inputs()[0].shape)
             if len(input_shape) != 4:
                 raise ValueError(
                     f"The input shape of the model must have four dimensions. Found dimensions: {input_shape}"
@@ -206,20 +210,13 @@ class OnnxInferencer:
         Returns:
             The output shape of the model.
         """
-        with ManagedOnnxSession(
-            self._model_path, providers=["CPUExecutionProvider"]
-        ) as sess:
-            output_shape = tuple(
-                elem if isinstance(elem, int) else None
-                for elem in sess.get_outputs()[0].shape
-            )
+        with ManagedOnnxSession(self._model_path, providers=["CPUExecutionProvider"]) as sess:
+            output_shape = tuple(elem if isinstance(elem, int) else None for elem in sess.get_outputs()[0].shape)
             if len(output_shape) != 4:
                 raise ValueError(
                     f"The output shape of the model must have four dimensions. Found dimensions: {output_shape}"
                 )
             return cast(
-                Tuple[
-                    Optional[int], Optional[int], Optional[int], Optional[int]
-                ],
+                Tuple[Optional[int], Optional[int], Optional[int], Optional[int]],
                 output_shape,
             )
