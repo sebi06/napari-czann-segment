@@ -72,9 +72,9 @@ jobs:
           python -m pip install setuptools tox tox-gh-actions pytest pytest-cov pytest-qt
 
       # this should work inside CI environments    
-      - name: Install onnxruntime-gpu for Windows
+      - name: Install onnxruntime for Windows
         if: runner.os == 'Windows'
-        run: python -m pip install onnxruntime-gpu==1.19.0
+        run: python -m pip install onnxruntime==1.19.0
         env:
           # Force CPU-only mode and help with DLL loading
           CUDA_VISIBLE_DEVICES: ""
