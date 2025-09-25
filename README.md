@@ -49,20 +49,20 @@ A test image and a *.czann model file can be downloaded [here](https://github.co
 
 In order to use this plugin the user has to do the following things:
 
-- Open the image using "File - Open Files(s)" (requires [napari-aicsimageio] plugin).
+- Open the image using "File - Open Files(s)" (requires [napari-bioio] plugin).
 - Click **napari-czann-segment: Segment with CZANN model** in the "Plugins" menu.
 - **Select a czann file** to use the model for segmentation.
 - metadata of the model will be shown (see example below)
 
-| Parameter    | Value                                        | Explanation                                             |
-| :----------- | :------------------------------------------- | ------------------------------------------------------- |
-| model_type   | ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION | see: [czmodel] for details                              |
-| input_shape  | [1024, 1024, 1]                              | tile dimensions of model input                          |
-| output_shape | [1024, 1024, 3]                              | tile dimensions of model output                         |
-| model_id     | ba32bc6d-6bc9-4774-8b47-20646c7cb838         | unique GUID for that model                              |
-| min_overlap  | [128, 128]                                   | tile overlap used during training (for this model)      |
-| classes      | ['background', 'grains', 'inclusions']       | available classes                                       |
-| model_name   | APEER-trained model                          | name of the model                                       |
+| Parameter    | Value                                        | Explanation                                        |
+| :----------- | :------------------------------------------- | -------------------------------------------------- |
+| model_type   | ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION | see: [czmodel] for details                         |
+| input_shape  | [1024, 1024, 1]                              | tile dimensions of model input                     |
+| output_shape | [1024, 1024, 3]                              | tile dimensions of model output                    |
+| model_id     | ba32bc6d-6bc9-4774-8b47-20646c7cb838         | unique GUID for that model                         |
+| min_overlap  | [128, 128]                                   | tile overlap used during training (for this model) |
+| classes      | ['background', 'grains', 'inclusions']       | available classes                                  |
+| model_name   | APEER-trained model                          | name of the model                                  |
 
 ![Napari - Image loaded and czann selected](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann1.png)
 
@@ -140,7 +140,7 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 [czmodel]: https://pypi.org/project/czmodel/
 [cztile]: https://pypi.org/project/cztile/
 [APEER]: https://www.apeer.com
-[napari-aicsimageio]: https://github.com/AllenCellModeling/napari-aicsimageio
+[napari-bioio-reader]: https://github.com/imcf/napari-bioio-reader
 [ONNX-GPU]: https://pypi.org/project/onnxruntime-gpu/
 [ONNX-CPU]: https://pypi.org/project/onnxruntime/
 [conda]: https://docs.conda.io/projects/conda/en/latest/user-guide/getting-started.html

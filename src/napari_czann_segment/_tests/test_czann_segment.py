@@ -13,7 +13,7 @@ from napari_czann_segment import get_testdata
 from napari_czann_segment.dock_widget import setup_log
 from napari_czann_segment import predict, process_nd
 from napari_czann_segment.onnx_inference import ONNXRUNTIME_AVAILABLE
-from aicsimageio import AICSImage
+from bioio import BioImage
 from pathlib import Path
 import tempfile
 import os
@@ -126,39 +126,31 @@ def test_ndarray_prediction_seg(
     czann_file = get_testdata.get_modelfile(czann)
     image_file = get_testdata.get_imagefile(image)
 
-    # read using AICSImageIO
-    aics_img = AICSImage(image_file)
-    logger.info(f"Dimension Original Image: {aics_img.dims}")
-    logger.info(f"Array Shape Original Image: {aics_img.shape}")
+    # read using BioImage
+    bioio_img = BioImage(image_file)
+    logger.info(f"Dimension Original Image: {bioio_img.dims}")
+    logger.info(f"Array Shape Original Image: {bioio_img.shape}")
 
     scale_x = 1.0
     scale_y = 1.0
 
     # Get physical pixel sizes using the correct API
-    pixel_sizes = aics_img.get_physical_pixel_size()
-    if pixel_sizes and len(pixel_sizes) >= 2:
-        scale_x = pixel_sizes[0] if pixel_sizes[0] is not None else 1.0
-        scale_y = pixel_sizes[1] if pixel_sizes[1] is not None else 1.0
+    scale_x = bioio_img.physical_pixel_sizes.X if bioio_img.physical_pixel_sizes.X is not None else 1.0
+    scale_y = bioio_img.physical_pixel_sizes.Y if bioio_img.physical_pixel_sizes.Y is not None else 1.0
 
     # Check dimensions and shape
-    assert aics_img.dims == "STCZYX"
-    assert aics_img.shape == (1, 1, 1, 1, 2755, 3675)
+    assert bioio_img.dims.order == "TCZYX"
+    assert bioio_img.shape == (1, 1, 1, 2755, 3675)
 
     # Test the physical pixel sizes using the correct API
-    pixel_sizes = aics_img.get_physical_pixel_size()
-    assert pixel_sizes[0] == 0.227  # X
-    assert pixel_sizes[1] == 0.227  # Y
-    assert pixel_sizes[2] == 1.0  # Z
-
-    # get the scaling - will be applied to the segmentation outputs
-    # scale = (pixel_sizes[0], pixel_sizes[1])
-    # scale = (scale_x, scale_y)
+    assert bioio_img.physical_pixel_sizes.X == 0.227  # X
+    assert bioio_img.physical_pixel_sizes.Y == 0.227  # Y
+    assert bioio_img.physical_pixel_sizes.Z == 1.0  # Z
 
     # read the image data as numpy or dask array
-    img = aics_img.get_image_data()
-    # img = aics_img.get_image_dask_data()
+    img = bioio_img.get_image_data()
 
-    assert img.shape == (1, 1, 1, 1, 2755, 3675)
+    assert img.shape == (1, 1, 1, 2755, 3675)
 
     modeldata, seg_complete = predict.predict_ndarray(
         czann_file,
@@ -170,8 +162,8 @@ def test_ndarray_prediction_seg(
         merge_window=merge_window,
     )
 
-    assert seg_complete.shape == (1, 1, 1, 1, 2755, 3675)
-    assert seg_complete.ndim == 6  # Updated from 5 to 6 dimensions
+    assert seg_complete.shape == (1, 1, 1, 2755, 3675)
+    assert seg_complete.ndim == 5  # Updated from 5 to 6 dimensions
 
     # create a list of label values
     label_values = list(range(1, len(modeldata.classes) + 1))
@@ -191,7 +183,7 @@ def test_ndarray_prediction_seg(
         (
             "simple_regmodel.czann",
             "LowSNR_s001.png",
-            (1, 1, 1, 1, 1024, 1024),  # Updated to include extra dimension
+            (1, 1, 1, 1024, 1024),
             False,
             TileMethod.CZTILE,
             SupportedWindow.none,
@@ -199,7 +191,7 @@ def test_ndarray_prediction_seg(
         (
             "N2V_tobacco_leaf.czann",
             "tobacco_leaf_WT_small.ome.tiff",
-            (1, 1, 1, 2, 1600, 1600),  # Updated to include extra dimension
+            (1, 1, 2, 1600, 1600),  # Updated to include extra dimension
             False,
             TileMethod.CZTILE,
             SupportedWindow.none,
@@ -207,7 +199,7 @@ def test_ndarray_prediction_seg(
         (
             "simple_regmodel.czann",
             "LowSNR_s001.png",
-            (1, 1, 1, 1, 1024, 1024),  # Updated to include extra dimension
+            (1, 1, 1, 1024, 1024),  # Updated to include extra dimension
             False,
             TileMethod.TILER,
             SupportedWindow.overlaptile,
@@ -215,7 +207,7 @@ def test_ndarray_prediction_seg(
         (
             "N2V_tobacco_leaf.czann",
             "tobacco_leaf_WT_small.ome.tiff",
-            (1, 1, 1, 2, 1600, 1600),  # Updated to include extra dimension
+            (1, 1, 2, 1600, 1600),  # Updated to include extra dimension
             False,
             TileMethod.TILER,
             SupportedWindow.overlaptile,
@@ -249,13 +241,13 @@ def test_ndarray_prediction_reg(
     czann_file = get_testdata.get_modelfile(czann)
     image_file = get_testdata.get_imagefile(image)
 
-    # read using AICSImageIO
-    aics_img = AICSImage(image_file)
-    logger.info(f"Dimension Original Image: {aics_img.dims}")
-    logger.info(f"Array Shape Original Image: {aics_img.shape}")
+    # read using BioImage
+    bioio_img = BioImage(image_file)
+    logger.info(f"Dimension Original Image: {bioio_img.dims}")
+    logger.info(f"Array Shape Original Image: {bioio_img.shape}")
 
     # read the image data as numpy or dask array
-    img = aics_img.get_image_data()
+    img = bioio_img.get_image_data()
 
     if img.shape[-1] == 3:
         img = img[..., 0]
@@ -273,7 +265,7 @@ def test_ndarray_prediction_reg(
     )
 
     assert seg_complete.shape == shape
-    assert seg_complete.ndim == 6  # Updated from 5 to 6 dimensions
+    assert seg_complete.ndim == 5
 
     print("Done.")
 
