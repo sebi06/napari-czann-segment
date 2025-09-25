@@ -13,7 +13,6 @@ from typing import Tuple, Optional, List, cast, Union, Dict, Any
 from types import TracebackType
 
 import numpy as np
-import torch
 
 # Handle onnxruntime import gracefully for CI environments
 try:

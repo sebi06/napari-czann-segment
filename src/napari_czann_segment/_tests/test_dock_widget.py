@@ -1,7 +1,6 @@
 import dask.array as da
 import pytest
 from napari.layers import Image, Labels
-from qtpy.QtCore import Qt
 
 
 @pytest.fixture

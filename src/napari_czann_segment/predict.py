@@ -12,7 +12,7 @@
 import numpy as np
 import tempfile
 import itertools
-from typing import List, Tuple, Dict, Union, Any, Optional
+from typing import Tuple, Union, Any
 import dask.array as da
 from .onnx_inference import OnnxInferencer
 from czmodel import ModelType, ModelMetadata

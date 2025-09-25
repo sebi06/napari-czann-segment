@@ -13,7 +13,7 @@ import dask.array as da
 from skimage.measure import label
 import numpy as np
 import itertools
-from typing import List, NamedTuple, Union, Tuple, Callable
+from typing import Union
 
 
 def label_nd(

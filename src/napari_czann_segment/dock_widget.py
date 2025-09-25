@@ -143,7 +143,7 @@ class TableWidget(QWidget):
         fnt.setBold(True)
         fnt.setFamily("Arial")
 
-        fc = (25, 25, 25)
+        # fc = (25, 25, 25)
 
         item1 = QTableWidgetItem("Parameter")
         item1.setFont(fnt)
@@ -526,10 +526,10 @@ class segment_with_czann(QWidget):
         """
         if self.use_gpu_checkbox.value:
             self.use_gpu = True
-            self.logger.info(f"Use GPU for inference.")
+            self.logger.info("Use GPU for inference.")
         if not self.use_gpu_checkbox.value:
             self.use_gpu = False
-            self.logger.info(f"Use CPU for inference.")
+            self.logger.info("Use CPU for inference.")
 
     def _tiling_method_changed(self):
         """

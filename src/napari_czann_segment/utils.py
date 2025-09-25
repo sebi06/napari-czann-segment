@@ -9,10 +9,9 @@
 #
 #################################################################
 
-from typing import List, NamedTuple, Union, Tuple, Callable, NamedTuple
+from typing import Tuple, NamedTuple
 import os
 from pathlib import Path
-from typing import NamedTuple
 import logging
 
 # import configparser

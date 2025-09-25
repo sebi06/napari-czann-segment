@@ -16,21 +16,11 @@ from napari_czann_segment.onnx_inference import ONNXRUNTIME_AVAILABLE
 from bioio import BioImage
 from pathlib import Path
 import tempfile
-import os
-import torch
 from napari_czann_segment.utils import TileMethod, SupportedWindow
 from czmodel.pytorch.convert import DefaultConverter
 import pytest
 from typing import (
-    List,
-    Dict,
     Tuple,
-    Optional,
-    Type,
-    Any,
-    Union,
-    Mapping,
-    Literal,
 )
 
 logger = setup_log("Napari-CZANN")
@@ -131,12 +121,12 @@ def test_ndarray_prediction_seg(
     logger.info(f"Dimension Original Image: {bioio_img.dims}")
     logger.info(f"Array Shape Original Image: {bioio_img.shape}")
 
-    scale_x = 1.0
-    scale_y = 1.0
+    # scale_x = 1.0
+    # scale_y = 1.0
 
-    # Get physical pixel sizes using the correct API
-    scale_x = bioio_img.physical_pixel_sizes.X if bioio_img.physical_pixel_sizes.X is not None else 1.0
-    scale_y = bioio_img.physical_pixel_sizes.Y if bioio_img.physical_pixel_sizes.Y is not None else 1.0
+    # # Get physical pixel sizes using the correct API
+    # scale_x = bioio_img.physical_pixel_sizes.X if bioio_img.physical_pixel_sizes.X is not None else 1.0
+    # scale_y = bioio_img.physical_pixel_sizes.Y if bioio_img.physical_pixel_sizes.Y is not None else 1.0
 
     # Check dimensions and shape
     assert bioio_img.dims.order == "TCZYX"
@@ -175,6 +165,7 @@ def test_ndarray_prediction_seg(
 
         # get all pixels with a specific value as boolean array, convert to numpy array and label
         labels_current_class = process_nd.label_nd(seg_complete, labelvalue=label_values[c])
+        print(f"Shape Labels Current Class: {labels_current_class.shape}")
 
 
 @pytest.mark.parametrize(
