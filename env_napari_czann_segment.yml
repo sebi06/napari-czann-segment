@@ -25,20 +25,21 @@ dependencies:
       - czmodel[pytorch]>=5
       - cztile
       - onnxruntime-gpu
-      - aicsimageio[all]
+      - bioio
+      - bioio-ome-tiff
       - aicspylibczi
       - pylibczirw
       - opencv-python
       - czitools
       - napari[all]
-      - napari-aicsimageio
+      - napari-bioio-reader
       - napari-brightness-contrast
       - napari-layer-details-display
       - napari-skimage-regionprops
       - napari-simpleitk-image-processing
       - napari-plugin-search
       - napari-ome-zarr
-      - tifffile>=2023.4.12
+      #- tifffile>=2023.4.12
 
 # Create an environment
 # conda env create --file env_napari_czann_segment.yml

@@ -1,12 +1,12 @@
 name: napari-czann-segment # needs to match your package name
-display_name: CZANN Segmentation # will also be used on the hub soon
+display_name: CZANN Segmentation and Processing # will also be used on the hub soon
 
 contributions:
   commands:
     - id: napari-czann-segment.get_czann_widget
       python_name: napari_czann_segment.dock_widget:segment_with_czann
-      title: CZANN segmentation Adv
+      title: CZANN Segmentation and Processing
 
   widgets:
     - command: napari-czann-segment.get_czann_widget
-      display_name: Segment with CZANN Model
+      display_name: Segment or Process with CZANN Model

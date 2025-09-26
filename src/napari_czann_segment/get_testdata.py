@@ -10,7 +10,12 @@
 #################################################################
 
 import os
-import pkg_resources
+
+try:
+    from importlib.resources import files
+except ImportError:
+    # Fallback for Python < 3.9
+    from importlib_resources import files
 from napari_czann_segment import utils
 
 PACKAGE_NAME = r"napari_czann_segment"
@@ -27,7 +32,9 @@ def get_modelfile(name_czann: str = "PGC_nucleus_detector.czann") -> str:
         str: Absolute path of the CZANN (or CZMODEL) file
     """
 
-    datadir = pkg_resources.resource_filename(PACKAGE_NAME, PACKAGE_DATA)
+    # Get the data directory using modern importlib.resources
+    package_files = files(PACKAGE_NAME)
+    datadir = str(package_files / PACKAGE_DATA.strip("/"))
     czann_file = os.path.join(datadir, name_czann)
 
     utils.check_file(czann_file)
@@ -45,7 +52,9 @@ def get_imagefile(name_imagefile: str = "PGC_10x_S02.czi") -> str:
         str: Absolute path of the file
     """
 
-    datadir = pkg_resources.resource_filename(PACKAGE_NAME, PACKAGE_DATA)
+    # Get the data directory using modern importlib.resources
+    package_files = files(PACKAGE_NAME)
+    datadir = str(package_files / PACKAGE_DATA.strip("/"))
     path_imagefile = os.path.join(datadir, name_imagefile)
 
     utils.check_file(path_imagefile)
