@@ -27,6 +27,7 @@ from pathlib import Path
 from .utils import TileMethod, SupportedWindow
 from ryomen import Slicer
 from .utils import setup_log
+import xarray as xr
 
 
 logger = setup_log("Napari-CZANN-predict")
@@ -34,7 +35,7 @@ logger = setup_log("Napari-CZANN-predict")
 
 def predict_ndarray(
     czann_file: str,
-    img: Union[np.ndarray, da.Array],
+    img: Union[np.ndarray, da.Array, xr.DataArray],
     border: Union[str, int] = "auto",
     use_gpu: bool = False,
     do_rescale: bool = True,
@@ -56,6 +57,10 @@ def predict_ndarray(
         Tuple[Any, Union[np.ndarray, da.Array]]: Return model metadata and the segmented multidimensional array
     """
 
+    # convert xarray to numpy array
+    if isinstance(img, xr.DataArray):
+        img = img.data
+
     # seg_complete = da.zeros_like(img, chunks=img.shape)
     seg_complete = np.zeros_like(img)
 
@@ -70,9 +75,7 @@ def predict_ndarray(
     with tempfile.TemporaryDirectory() as temp_path:
 
         # this is the new way of unpacking using the czann files
-        modelmd, model_path = DefaultConverter().unpack_model(
-            model_file=czann_file, target_dir=Path(temp_path)
-        )
+        modelmd, model_path = DefaultConverter().unpack_model(model_file=czann_file, target_dir=Path(temp_path))
 
         # get the used bordersize - is needed for the tiling
         if isinstance(border, str) and border == "auto":
@@ -163,9 +166,7 @@ def predict_tiles2d(
             )
 
             # create the tiles
-            tiles = tiler.tile_rectangle(
-                czrect(x=0, y=0, w=img2d.shape[0], h=img2d.shape[1])
-            )
+            tiles = tiler.tile_rectangle(czrect(x=0, y=0, w=img2d.shape[0], h=img2d.shape[1]))
 
             # loop over all tiles
             for tile in tqdm(tiles):
@@ -177,10 +178,7 @@ def predict_tiles2d(
                 ]
 
                 # run the prediction
-                if (
-                    model_md.model_type
-                    == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
-                ):
+                if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
                     tile2d = process_semantic(
                         tile2d,
@@ -198,9 +196,7 @@ def predict_tiles2d(
                 if model_md.model_type == ModelType.REGRESSION:
 
                     # get the prediction for a single tile
-                    tile2d = inferencer.predict(
-                        [tile2d[..., np.newaxis]], use_gpu=use_gpu
-                    )[0]
+                    tile2d = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
 
                     # place result inside the new image
                     new_img2d[
@@ -227,10 +223,7 @@ def predict_tiles2d(
             )
 
             # Setup merging parameters
-            if (
-                model_md.model_type
-                == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
-            ):
+            if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
                 logger.info(f"Using Merging Window: {merge_window_name}")
                 merger = Merger(tiler, window=merge_window_name)
 
@@ -256,9 +249,7 @@ def predict_tiles2d(
                     tile2d = tiler.get_tile(img2d, tile_id)
 
                     # get the prediction for a single tile
-                    tile2d = inferencer.predict(
-                        [tile2d[..., np.newaxis]], use_gpu=use_gpu
-                    )[0]
+                    tile2d = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
 
                     merger.add(tile_id, tile2d[..., 0])
 
@@ -274,10 +265,7 @@ def predict_tiles2d(
             )
 
             # Setup merging parameters
-            if (
-                model_md.model_type
-                == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
-            ):
+            if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
                 for tile2d, source, destination in tqdm(slices):
 
@@ -295,9 +283,7 @@ def predict_tiles2d(
                 for tile2d, source, destination in tqdm(slices):
 
                     # get the prediction for a single tile
-                    tile2d = inferencer.predict(
-                        [tile2d[..., np.newaxis]], use_gpu=use_gpu
-                    )[0]
+                    tile2d = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
 
                     new_img2d[destination] = tile2d[source]
 
