@@ -1,4 +1,8 @@
 # run: conda env create --file env_napari_czann_segment.yml
+# 
+# Important: This environment requires a NVIDIA GPU and the appropriate drivers installed.
+# It is just an example environment for running napari-czann-segment with GPU acceleration.
+#
 name: napari_czann_segment
 channels:
   - pytorch
@@ -7,39 +11,36 @@ channels:
   - conda-forge
 
 dependencies:
-  - python=3.9
+  - python=3.11
   - conda
   - docutils
   - pip
   - wheel
-  - pytorch
+  - napari>=0.6.6
+  - cudnn=9.13.1.26
   - torchvision
-  - pytorch-cuda=11.7
+  - pytorch::pytorch=2.5.1
+  - pytorch::pytorch-cuda=12.4
   - setuptools
   - autopep8
-  - nb_conda_kernels
   - pytest
-  - ipyfilechooser
 
   - pip:
-      - czmodel[pytorch]>=5
-      - cztile
-      - onnxruntime-gpu
+      - czmodel>=5
+      - cztile>=2
+      - onnxruntime-gpu==1.19.0
       - bioio
       - bioio-ome-tiff
       - aicspylibczi
       - pylibczirw
       - opencv-python
       - czitools
-      - napari[all]
       - napari-bioio-reader
       - napari-brightness-contrast
       - napari-layer-details-display
       - napari-skimage-regionprops
       - napari-simpleitk-image-processing
       - napari-plugin-search
-      - napari-ome-zarr
-      #- tifffile>=2023.4.12
 
 # Create an environment
 # conda env create --file env_napari_czann_segment.yml
