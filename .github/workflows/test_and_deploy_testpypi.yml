@@ -74,7 +74,8 @@ jobs:
             # this should work inside CI environments
             - name: Install onnxruntime for Windows
               if: runner.os == 'Windows'
-              run: python -m pip install onnxruntime==1.19.0
+              #run: python -m pip install onnxruntime==1.19.0
+              run: python -m pip install onnxruntime
               env:
                   # Force CPU-only mode and help with DLL loading
                   CUDA_VISIBLE_DEVICES: ""
