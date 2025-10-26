@@ -19,11 +19,13 @@ from czmodel import ModelType, ModelMetadata
 from cztile.fixed_total_area_strategy_2d import (
     AlmostEqualBorderFixedTotalAreaStrategy2D,
 )
-#from cztile.tiling_strategy import Rectangle as czrect
+
+# from cztile.tiling_strategy import Rectangle as czrect
 from cztile.tiling_strategy import Region2D, TileInput
 from tqdm import tqdm, trange
 from tiler import Tiler, Merger
-#from czmodel.pytorch.convert import DefaultConverter
+
+# from czmodel.pytorch.convert import DefaultConverter
 from czmodel.core.util._extract_model import extract_czann_model
 from pathlib import Path
 from .utils import TileMethod, SupportedWindow
@@ -80,7 +82,7 @@ def predict_ndarray(
         temp_path_obj = Path(temp_path)
 
         # this is the new way of unpacking using the czann files
-        #modelmd, model_path = DefaultConverter().unpack_model(model_file=czann_file, target_dir=Path(temp_path))
+        # modelmd, model_path = DefaultConverter().unpack_model(model_file=czann_file, target_dir=Path(temp_path))
         modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path_obj))
 
         # get the used bordersize - is needed for the tiling
@@ -168,10 +170,10 @@ def predict_tiles2d(
             tiler = AlmostEqualBorderFixedTotalAreaStrategy2D(
                 width=TileInput(model_md.input_shape[0], min_border_length=min_border_width),
                 height=TileInput(model_md.input_shape[1], min_border_length=min_border_width),
-)
+            )
 
             # create the tiles
-            #tiles = tiler.tile_rectangle(czrect(x=0, y=0, w=img2d.shape[0], h=img2d.shape[1]))
+            # tiles = tiler.tile_rectangle(czrect(x=0, y=0, w=img2d.shape[0], h=img2d.shape[1]))
             # create the tiles --> region2d = (x, y, w, h)
             region2d = Region2D(x=0, y=0, w=img2d.shape[1], h=img2d.shape[0])
             tiles = tiler.calculate_2d_tiles(region2d=region2d)
@@ -208,8 +210,8 @@ def predict_tiles2d(
 
                     # place result inside the new image
                     new_img2d[
-                        tile.roi.x : tile.roi.x + tile.roi.w,
                         tile.roi.y : tile.roi.y + tile.roi.h,
+                        tile.roi.x : tile.roi.x + tile.roi.w,
                     ] = tile2d[..., 0]
 
         if tiling_method is TileMethod.TILER:
