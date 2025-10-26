@@ -6,6 +6,7 @@ see: https://napari.org/plugins/guides.html?#widgets
 
 Replace code below according to your needs.
 """
+
 from typing import TYPE_CHECKING
 
 from magicgui import magic_factory

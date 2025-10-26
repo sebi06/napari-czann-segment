@@ -76,9 +76,7 @@ class Rectangle(NamedTuple):
     h: int
 
 
-def get_rectangle_from_image(
-    x: int, y: int, sizex: int, sizey: int
-) -> Rectangle:
+def get_rectangle_from_image(x: int, y: int, sizex: int, sizey: int) -> Rectangle:
     """
     Create a rectangle object from the given coordinates and sizes.
 

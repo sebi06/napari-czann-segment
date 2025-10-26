@@ -17,7 +17,8 @@ from bioio import BioImage
 from pathlib import Path
 import tempfile
 from napari_czann_segment.utils import TileMethod, SupportedWindow
-#from czmodel.pytorch.convert import DefaultConverter
+
+# from czmodel.pytorch.convert import DefaultConverter
 from czmodel.core.util._extract_model import extract_czann_model
 import pytest
 from typing import (

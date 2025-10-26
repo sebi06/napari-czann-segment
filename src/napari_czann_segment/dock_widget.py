@@ -19,7 +19,8 @@ from napari_czann_segment.predict import predict_ndarray
 from napari_czann_segment.utils import TileMethod, SupportedWindow
 import tempfile
 from pathlib import Path
-#from czmodel.pytorch.convert import DefaultConverter
+
+# from czmodel.pytorch.convert import DefaultConverter
 from czmodel.core.util._extract_model import extract_czann_model
 from czmodel import ModelType
 from typing import Dict
@@ -40,6 +41,7 @@ from magicgui.widgets import FileEdit, Slider, CheckBox, PushButton, ComboBox
 from magicgui.types import FileDialogMode
 import warnings
 from .utils import setup_log
+
 
 class TableWidget(QWidget):
     """
@@ -250,12 +252,6 @@ class segment_with_czann(QWidget):
         self.viewer.layers.events.removed.connect(self._reset_layer_options)
 
         # make button for reading the model metadata
-        # self.segment_btn = QPushButton("Segment or Process selected Image Layer")
-        # self.segment_btn.setEnabled(False)
-        # self.segment_btn.clicked.connect(self._segment)
-        # self.layout().addWidget(self.segment_btn)
-
-        # make button for reading the model metadata
         self.segment_btn = PushButton(
             name="Segment or Process selected Image Layer",
             visible=True,
@@ -317,18 +313,12 @@ class segment_with_czann(QWidget):
             # Convert temp_path to Path object
             temp_path_obj = Path(temp_path)
 
-            # (
-            #     self.model_metadata,
-            #     self.model_path,
-            # ) = DefaultConverter().unpack_model(model_file=self.czann_file, target_dir=Path(temp_path_obj))
-
             self.model_metadata, self.model_path = extract_czann_model(path=self.czann_file, target_dir=temp_path_obj)
 
         # get model metadata as dictionary
         self.model_metadata_dict = self.model_metadata._asdict()
         self.model_metadata_table.update_model_metadata(self.model_metadata_dict)
         self.model_metadata_table.update_style()
-        # self.logger.info(self.model_metadata_table.sizeHint())
 
         # get the specification from the model metadata
         self.min_overlap_ui = self.model_metadata.min_overlap[0]
@@ -400,6 +390,7 @@ class segment_with_czann(QWidget):
 
             # get individual outputs for all classes from the label image
             for c in range(len(modeldata.classes)):
+
                 # get the pixels for which the value is equal to current class value
                 self.logger.info("Class Name: " + modeldata.classes[c] + " Prediction Pixel Value: " + str(c))
 

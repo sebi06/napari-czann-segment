@@ -6,6 +6,7 @@ see: https://napari.org/plugins/guides.html?#sample-data
 
 Replace code below according to your needs.
 """
+
 from __future__ import annotations
 
 import numpy

@@ -13,15 +13,10 @@ logger = setup_log("Napari-CZANN")
 @pytest.mark.parametrize(
     "image, total_tile_length, min_border_length",
     [
-        (
-            "PGC_20X.ome.tiff",
-            1024,
-            128
-        ),
+        ("PGC_20X.ome.tiff", 1024, 128),
     ],
 )
 def test_tiling2d(image: str, total_tile_length: int, min_border_length: int) -> None:
-
 
     image_file = get_testdata.get_imagefile(image)
 
@@ -49,7 +44,7 @@ def test_tiling2d(image: str, total_tile_length: int, min_border_length: int) ->
     for tile in tiles:
 
         # get a single frame based on the tile coordinates and size
-        tile2d = img2d[tile.roi.y:tile.roi.y + tile.roi.h, tile.roi.x:tile.roi.x + tile.roi.w]
+        tile2d = img2d[tile.roi.y : tile.roi.y + tile.roi.h, tile.roi.x : tile.roi.x + tile.roi.w]
 
         assert tile2d is not None
         assert tile.roi.w <= total_tile_length
