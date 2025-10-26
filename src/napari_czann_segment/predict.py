@@ -23,7 +23,8 @@ from cztile.fixed_total_area_strategy_2d import (
 from cztile.tiling_strategy import Region2D, TileInput
 from tqdm import tqdm, trange
 from tiler import Tiler, Merger
-from czmodel.pytorch.convert import DefaultConverter
+#from czmodel.pytorch.convert import DefaultConverter
+from czmodel.core.util._extract_model import extract_czann_model
 from pathlib import Path
 from .utils import TileMethod, SupportedWindow
 from ryomen import Slicer
@@ -75,8 +76,12 @@ def predict_ndarray(
     # extract the model information and path and to the prediction
     with tempfile.TemporaryDirectory() as temp_path:
 
+        # Convert temp_path to Path object
+        temp_path_obj = Path(temp_path)
+
         # this is the new way of unpacking using the czann files
-        modelmd, model_path = DefaultConverter().unpack_model(model_file=czann_file, target_dir=Path(temp_path))
+        #modelmd, model_path = DefaultConverter().unpack_model(model_file=czann_file, target_dir=Path(temp_path))
+        modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path_obj))
 
         # get the used bordersize - is needed for the tiling
         if isinstance(border, str) and border == "auto":
@@ -179,8 +184,6 @@ def predict_tiles2d(
                     tile.roi.y : tile.roi.y + tile.roi.h,
                     tile.roi.x : tile.roi.x + tile.roi.w,
                 ]
-
-                logger.info(f"Shape Tile2D: {tile2d.shape}")
 
                 # run the prediction
                 if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:

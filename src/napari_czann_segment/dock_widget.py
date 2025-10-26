@@ -8,7 +8,7 @@
 # use it at your own risk.
 #
 #
-# Remarks: Requires czmodel[pytorch] >= 5.0
+# Remarks: Requires czmodel >= 5.0
 #################################################################
 
 import numpy as np
@@ -19,7 +19,8 @@ from napari_czann_segment.predict import predict_ndarray
 from napari_czann_segment.utils import TileMethod, SupportedWindow
 import tempfile
 from pathlib import Path
-from czmodel.pytorch.convert import DefaultConverter
+#from czmodel.pytorch.convert import DefaultConverter
+from czmodel.core.util._extract_model import extract_czann_model
 from czmodel import ModelType
 from typing import Dict
 from qtpy.QtWidgets import (
@@ -38,33 +39,7 @@ from qtpy.QtGui import QFont
 from magicgui.widgets import FileEdit, Slider, CheckBox, PushButton, ComboBox
 from magicgui.types import FileDialogMode
 import warnings
-
-# import logging
 from .utils import setup_log
-
-
-# def setup_log(name, create_logfile=False):
-
-#     # set up a new name for a new logger
-#     logger = logging.getLogger(name)
-#     logger.setLevel(logging.INFO)
-
-#     # define the logging format
-#     log_format = logging.Formatter(
-#         "%(asctime)s - %(levelname)s - %(message)s",
-#         datefmt="%d-%b-%y %H:%M:%S",
-#     )
-
-#     if create_logfile:
-
-#         filename = f"./test_{name}.log"
-#         log_handler = logging.FileHandler(filename)
-#         log_handler.setLevel(logging.DEBUG)
-#         log_handler.setFormatter(log_format)
-#         logger.addHandler(log_handler)
-
-#     return logger
-
 
 class TableWidget(QWidget):
     """
@@ -338,10 +313,16 @@ class segment_with_czann(QWidget):
 
         # extract the model information and path
         with tempfile.TemporaryDirectory() as temp_path:
-            (
-                self.model_metadata,
-                self.model_path,
-            ) = DefaultConverter().unpack_model(model_file=self.czann_file, target_dir=Path(temp_path))
+
+            # Convert temp_path to Path object
+            temp_path_obj = Path(temp_path)
+
+            # (
+            #     self.model_metadata,
+            #     self.model_path,
+            # ) = DefaultConverter().unpack_model(model_file=self.czann_file, target_dir=Path(temp_path_obj))
+
+            self.model_metadata, self.model_path = extract_czann_model(path=self.czann_file, target_dir=temp_path_obj)
 
         # get model metadata as dictionary
         self.model_metadata_dict = self.model_metadata._asdict()

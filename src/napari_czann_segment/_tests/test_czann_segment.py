@@ -17,7 +17,8 @@ from bioio import BioImage
 from pathlib import Path
 import tempfile
 from napari_czann_segment.utils import TileMethod, SupportedWindow
-from czmodel.pytorch.convert import DefaultConverter
+#from czmodel.pytorch.convert import DefaultConverter
+from czmodel.core.util._extract_model import extract_czann_model
 import pytest
 from typing import (
     Tuple,
@@ -53,8 +54,11 @@ def test_extract_model(czann: str, guid: str) -> None:
 
     with tempfile.TemporaryDirectory() as temp_path:
 
+        # Convert temp_path to Path object
+        temp_path_obj = Path(temp_path)
+
         # this is the new way of unpacking using the czann files
-        model_metadata, model_path = DefaultConverter().unpack_model(model_file=czann_file, target_dir=Path(temp_path))
+        model_metadata, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path_obj))
 
         # show model metadata
         print(model_metadata, "\n")
