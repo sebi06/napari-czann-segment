@@ -16,10 +16,11 @@ from typing import Tuple, Union, Any
 import dask.array as da
 from .onnx_inference import OnnxInferencer
 from czmodel import ModelType, ModelMetadata
-from cztile.fixed_total_area_strategy import (
+from cztile.fixed_total_area_strategy_2d import (
     AlmostEqualBorderFixedTotalAreaStrategy2D,
 )
-from cztile.tiling_strategy import Rectangle as czrect
+#from cztile.tiling_strategy import Rectangle as czrect
+from cztile.tiling_strategy import Region2D, TileInput
 from tqdm import tqdm, trange
 from tiler import Tiler, Merger
 from czmodel.pytorch.convert import DefaultConverter
@@ -160,22 +161,26 @@ def predict_tiles2d(
             # minimum required overlap between tiles (depends on the processing)
 
             tiler = AlmostEqualBorderFixedTotalAreaStrategy2D(
-                total_tile_width=model_md.input_shape[0],
-                total_tile_height=model_md.input_shape[1],
-                min_border_width=min_border_width,
-            )
+                width=TileInput(model_md.input_shape[0], min_border_length=min_border_width),
+                height=TileInput(model_md.input_shape[1], min_border_length=min_border_width),
+)
 
             # create the tiles
-            tiles = tiler.tile_rectangle(czrect(x=0, y=0, w=img2d.shape[0], h=img2d.shape[1]))
+            #tiles = tiler.tile_rectangle(czrect(x=0, y=0, w=img2d.shape[0], h=img2d.shape[1]))
+            # create the tiles --> region2d = (x, y, w, h)
+            region2d = Region2D(x=0, y=0, w=img2d.shape[1], h=img2d.shape[0])
+            tiles = tiler.calculate_2d_tiles(region2d=region2d)
 
             # loop over all tiles
             for tile in tqdm(tiles):
 
                 # get a single frame based on the roi
                 tile2d = img2d[
-                    tile.roi.x : tile.roi.x + tile.roi.w,
                     tile.roi.y : tile.roi.y + tile.roi.h,
+                    tile.roi.x : tile.roi.x + tile.roi.w,
                 ]
+
+                logger.info(f"Shape Tile2D: {tile2d.shape}")
 
                 # run the prediction
                 if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
@@ -189,8 +194,8 @@ def predict_tiles2d(
 
                     # place result inside the new image
                     new_img2d[
-                        tile.roi.x : tile.roi.x + tile.roi.w,
                         tile.roi.y : tile.roi.y + tile.roi.h,
+                        tile.roi.x : tile.roi.x + tile.roi.w,
                     ] = tile2d
 
                 if model_md.model_type == ModelType.REGRESSION:
