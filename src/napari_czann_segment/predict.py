@@ -76,11 +76,8 @@ def predict_ndarray(
     # extract the model information and path and to the prediction
     with tempfile.TemporaryDirectory() as temp_path:
 
-        # Convert temp_path to Path object
-        temp_path_obj = Path(temp_path)
-
         # this is the new way of unpacking using the czann files
-        modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path_obj))
+        modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path))
 
         # get the used bordersize - is needed for the tiling
         if isinstance(border, str) and border == "auto":

@@ -310,10 +310,7 @@ class segment_with_czann(QWidget):
         # extract the model information and path
         with tempfile.TemporaryDirectory() as temp_path:
 
-            # Convert temp_path to Path object
-            temp_path_obj = Path(temp_path)
-
-            self.model_metadata, self.model_path = extract_czann_model(path=self.czann_file, target_dir=temp_path_obj)
+            self.model_metadata, self.model_path = extract_czann_model(path=self.czann_file, target_dir=Path(temp_path))
 
         # get model metadata as dictionary
         self.model_metadata_dict = self.model_metadata._asdict()
