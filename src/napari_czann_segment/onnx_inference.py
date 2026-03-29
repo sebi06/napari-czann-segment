@@ -32,8 +32,20 @@ if sys.platform == "win32":
                 if _cuda_dir not in os.environ.get("PATH", ""):
                     os.environ["PATH"] = _cuda_dir + os.pathsep + os.environ.get("PATH", "")
 
-# Handle onnxruntime import gracefully for CI environments
+# Handle onnxruntime import gracefully for CI environments.
+# On Windows CI (no GPU drivers), onnxruntime's native C extension may trigger
+# a non-fatal access violation while probing for CUDA DLLs.  The process
+# survives (the exception is handled internally via SEH), but Python's
+# faulthandler — enabled by default in pytest — prints a scary
+# "Windows fatal exception: access violation" traceback that causes CI to
+# report the job as failed.  We temporarily disable faulthandler during the
+# import so the benign SEH exception is silently swallowed.
+import faulthandler as _fh
+
+_fh_was_enabled = _fh.is_enabled()
 try:
+    if sys.platform == "win32":
+        _fh.disable()
     import onnxruntime as rt
 
     ONNXRUNTIME_AVAILABLE = True
@@ -58,6 +70,9 @@ except ImportError:
 
     rt = MockOnnxRuntime()
     ONNXRUNTIME_AVAILABLE = False
+finally:
+    if _fh_was_enabled:
+        _fh.enable()
 
 
 def is_gpu_available() -> bool:
