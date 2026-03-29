@@ -12,7 +12,7 @@
 from napari_czann_segment import get_testdata
 from napari_czann_segment.dock_widget import setup_log
 from napari_czann_segment import predict, process_nd
-from napari_czann_segment.onnx_inference import is_gpu_available
+from napari_czann_segment.onnx_inference import is_gpu_available, ONNXRUNTIME_AVAILABLE
 from bioio import BioImage
 from pathlib import Path
 import os
@@ -94,6 +94,10 @@ def test_extract_model(czann: str, guid: str) -> None:
         assert model_metadata.model_id == guid
 
 
+@pytest.mark.skipif(
+    not ONNXRUNTIME_AVAILABLE,
+    reason="onnxruntime not available (e.g. Windows CI access violation)",
+)
 @pytest.mark.parametrize(
     "czann, image, gpu, tiling, merge_window",
     [
@@ -183,6 +187,10 @@ def test_ndarray_prediction_seg(
         print(f"Shape Labels Current Class: {labels_current_class.shape}")
 
 
+@pytest.mark.skipif(
+    not ONNXRUNTIME_AVAILABLE,
+    reason="onnxruntime not available (e.g. Windows CI access violation)",
+)
 @pytest.mark.parametrize(
     "czann, image, shape, gpu, tiling, merge_window",
     [

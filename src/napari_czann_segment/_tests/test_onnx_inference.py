@@ -22,6 +22,15 @@ from napari_czann_segment.onnx_inference import (
 # ---------------------------------------------------------------------------
 
 
+# Tests that need a working onnxruntime session are skipped when
+# ONNXRUNTIME_AVAILABLE is False (e.g. Windows CI where the native
+# extension crashes with an access violation during import).
+_skip_no_ort = pytest.mark.skipif(
+    not ONNXRUNTIME_AVAILABLE,
+    reason="onnxruntime not available (e.g. Windows CI access violation)",
+)
+
+
 @pytest.fixture()
 def seg_model_path():
     """Extract the simple segmentation model to a temp dir and yield the ONNX path."""
@@ -60,6 +69,7 @@ class TestIsGpuAvailable:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_ort
 class TestManagedOnnxSession:
     def test_cpu_session(self, seg_model_path):
         with ManagedOnnxSession(seg_model_path, providers=["CPUExecutionProvider"]) as sess:
@@ -87,6 +97,7 @@ class TestManagedOnnxSession:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_ort
 class TestOnnxInferencerShapes:
     def test_get_input_shape(self, seg_model_path):
         inf = OnnxInferencer(seg_model_path)
@@ -116,6 +127,7 @@ class TestOnnxInferencerShapes:
 # ---------------------------------------------------------------------------
 
 
+@_skip_no_ort
 class TestOnnxInferencerPredict:
     def test_predict_single_tile(self, seg_model_path):
         inf = OnnxInferencer(seg_model_path)
