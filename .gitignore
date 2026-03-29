@@ -96,4 +96,3 @@ src/napari_czann_segment/experimental/**
 /src/experimental
 /_archive
 /.pytest_cache
-/.github/_pr_descriptions
