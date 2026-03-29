@@ -12,9 +12,10 @@
 from napari_czann_segment import get_testdata
 from napari_czann_segment.dock_widget import setup_log
 from napari_czann_segment import predict, process_nd
-from napari_czann_segment.onnx_inference import ONNXRUNTIME_AVAILABLE
+from napari_czann_segment.onnx_inference import is_gpu_available
 from bioio import BioImage
 from pathlib import Path
+import os
 import tempfile
 from napari_czann_segment.utils import TileMethod, SupportedWindow
 
@@ -26,6 +27,23 @@ from typing import (
 )
 
 logger = setup_log("Napari-CZANN")
+
+
+@pytest.mark.skipif(
+    os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true",
+    reason="GPU test only runs locally, not in CI",
+)
+def test_gpu_available():
+    """Check if GPU inference is available in the current environment."""
+    gpu_ok = is_gpu_available()
+    if gpu_ok:
+        logger.info("GPU is available for ONNX inference.")
+    else:
+        logger.warning(
+            "GPU is NOT available. CUDAExecutionProvider could not be loaded. "
+            "Ensure CUDA toolkit and cuDNN are installed and on PATH."
+        )
+    assert isinstance(gpu_ok, bool)
 
 
 @pytest.mark.parametrize(
@@ -95,7 +113,6 @@ def test_extract_model(czann: str, guid: str) -> None:
         ),
     ],
 )
-@pytest.mark.skipif(not ONNXRUNTIME_AVAILABLE, reason="onnxruntime not available in CI environment")
 def test_ndarray_prediction_seg(
     czann: str,
     image: str,
@@ -125,13 +142,6 @@ def test_ndarray_prediction_seg(
     bioio_img = BioImage(image_file)
     logger.info(f"Dimension Original Image: {bioio_img.dims}")
     logger.info(f"Array Shape Original Image: {bioio_img.shape}")
-
-    # scale_x = 1.0
-    # scale_y = 1.0
-
-    # # Get physical pixel sizes using the correct API
-    # scale_x = bioio_img.physical_pixel_sizes.X if bioio_img.physical_pixel_sizes.X is not None else 1.0
-    # scale_y = bioio_img.physical_pixel_sizes.Y if bioio_img.physical_pixel_sizes.Y is not None else 1.0
 
     # Check dimensions and shape
     assert bioio_img.dims.order == "TCZYX"
@@ -210,7 +220,6 @@ def test_ndarray_prediction_seg(
         ),
     ],
 )
-@pytest.mark.skipif(not ONNXRUNTIME_AVAILABLE, reason="onnxruntime not available in CI environment")
 def test_ndarray_prediction_reg(
     czann: str,
     image: str,

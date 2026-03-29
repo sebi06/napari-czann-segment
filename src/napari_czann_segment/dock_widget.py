@@ -17,6 +17,7 @@ from napari.layers import Image
 from napari_czann_segment.process_nd import label_nd
 from napari_czann_segment.predict import predict_ndarray
 from napari_czann_segment.utils import TileMethod, SupportedWindow
+from napari_czann_segment.onnx_inference import is_gpu_available
 import tempfile
 from pathlib import Path
 
@@ -242,6 +243,21 @@ class segment_with_czann(QWidget):
         )
         self.use_gpu_checkbox.clicked.connect(self._use_gpu_changed)
         self.layout().addWidget(self.use_gpu_checkbox.native)
+
+        # check GPU availability and disable checkbox if not usable
+        self._gpu_available = is_gpu_available()
+        if self._gpu_available:
+            self.logger.info("GPU support is available. CUDA will be used for inference when the checkbox is enabled.")
+        else:
+            self.use_gpu = False
+            self.use_gpu_checkbox.value = False
+            self.use_gpu_checkbox.enabled = False
+            self.logger.warning(
+                "GPU support is not available in the current environment. "
+                "Using CPU for inference. "
+                "To enable GPU, install the GPU extra: pip install napari-czann-segment[gpu] "
+                "and ensure CUDA toolkit + cuDNN are installed (e.g. via conda)."
+            )
 
         # make a combo box for selecting the image layers
         self.layer_combos = []
