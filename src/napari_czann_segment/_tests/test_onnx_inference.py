@@ -21,6 +21,7 @@ from napari_czann_segment.onnx_inference import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def seg_model_path():
     """Extract the simple segmentation model to a temp dir and yield the ONNX path."""
@@ -43,6 +44,7 @@ def reg_model_path():
 # is_gpu_available
 # ---------------------------------------------------------------------------
 
+
 class TestIsGpuAvailable:
     def test_returns_bool(self):
         result = is_gpu_available()
@@ -56,6 +58,7 @@ class TestIsGpuAvailable:
 # ---------------------------------------------------------------------------
 # ManagedOnnxSession
 # ---------------------------------------------------------------------------
+
 
 class TestManagedOnnxSession:
     def test_cpu_session(self, seg_model_path):
@@ -82,6 +85,7 @@ class TestManagedOnnxSession:
 # ---------------------------------------------------------------------------
 # OnnxInferencer – shape introspection
 # ---------------------------------------------------------------------------
+
 
 class TestOnnxInferencerShapes:
     def test_get_input_shape(self, seg_model_path):
@@ -110,6 +114,7 @@ class TestOnnxInferencerShapes:
 # ---------------------------------------------------------------------------
 # OnnxInferencer – prediction on CPU
 # ---------------------------------------------------------------------------
+
 
 class TestOnnxInferencerPredict:
     def test_predict_single_tile(self, seg_model_path):

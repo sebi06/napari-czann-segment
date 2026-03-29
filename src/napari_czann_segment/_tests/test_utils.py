@@ -78,9 +78,19 @@ class TestEnums:
 
     def test_supported_window_has_all_members(self):
         expected = {
-            "boxcar", "triang", "blackman", "hamming", "hann",
-            "bartlett", "parzen", "bohman", "blackmanharris",
-            "nuttall", "barthann", "overlaptile", "none",
+            "boxcar",
+            "triang",
+            "blackman",
+            "hamming",
+            "hann",
+            "bartlett",
+            "parzen",
+            "bohman",
+            "blackmanharris",
+            "nuttall",
+            "barthann",
+            "overlaptile",
+            "none",
         }
         assert set(SupportedWindow.__members__.keys()) == expected
 
