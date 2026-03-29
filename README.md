@@ -21,6 +21,8 @@ You can then install `napari-czann-segment` via [pip]:
 
     pip install napari-czann-segment
 
+This installs CPU inference support and works on **Windows, Linux, and macOS** (including Apple Silicon). For GPU acceleration on Windows/Linux with an NVIDIA GPU, see [CPU vs. GPU Inference](#cpu-vs-gpu-inference).
+
 ## What does the plugin do
 
 The plugin allows you to:
@@ -83,10 +85,52 @@ Another example is shown below demonstrating a simple "Grain Size Analysis" usin
 > **IMPORTANT**: Currently the plugin only supports using models trained on a **single channel** image. Therefore, make sure that during the training on [APEER] or somewhere else the correct inputs images are used.
 > It is quite simple to train a single RGB image, which actually has three channels, load this image in [napari] and notice only then that the model will not work, because the image will 3 channels inside [napari].
 
-- Only the CPU will be used for the inference using the ONNX runtime for the [ONNX-CPU] runtime
-- GPUs are supported but require the [ONNX-GPU] runtime and the respective CUDA libraries.
-- Please check the [YAML](env_napari_czann_segment.yml) for an example environment with GPU support.
-- See also [pytorch] for instruction on how to install pytorch
+## CPU vs. GPU Inference
+
+### CPU (default - works everywhere)
+
+By default, the plugin uses **CPU inference** via [ONNX-CPU]. This works on **all platforms** (Windows, Linux, macOS including Apple Silicon) without additional setup:
+
+    pip install napari-czann-segment
+
+When the plugin starts, it checks GPU availability and logs the result. If no GPU is detected, the "Use GPU" checkbox is automatically disabled and all inference runs on CPU.
+
+### macOS
+
+On macOS (both Intel and Apple Silicon), the plugin works with **CPU inference only**. NVIDIA CUDA is not available on macOS, so the `[gpu]` extra should **not** be installed — `onnxruntime-gpu` does not publish macOS wheels and installation will fail. Simply use:
+
+    pip install napari-czann-segment
+
+The GPU checkbox will be automatically disabled on macOS.
+
+### GPU (optional - Windows/Linux with NVIDIA GPU)
+
+GPU acceleration uses [ONNX-GPU] and requires an **NVIDIA GPU** with the correct CUDA libraries. To enable it:
+
+1. **Install the GPU extra** (recommended - includes CUDA and cuDNN pip packages):
+
+       pip install napari-czann-segment[gpu]
+
+   This installs `onnxruntime-gpu` along with the required CUDA 12.x and cuDNN 9.x libraries as pip packages, so **no separate CUDA toolkit installation is needed** in most cases.
+
+2. **Verify GPU support** after installation:
+
+       python -c "import onnxruntime; print(onnxruntime.get_available_providers())"
+
+   You should see `CUDAExecutionProvider` in the list.
+
+3. **(Alternative) Use a conda environment** with system CUDA libraries. See the example [conda environment YAML](env_napari_czann_segment.yml):
+
+       conda env create --file env_napari_czann_segment.yml
+
+**Note:** If you have PyTorch with CUDA installed, onnxruntime-gpu (>= 1.21) can automatically reuse PyTorch's CUDA/cuDNN DLLs via its `preload_dlls()` mechanism. The plugin calls this automatically at startup.
+
+### Troubleshooting GPU
+
+- **`cublasLt64_12.dll` or `cufft64_11.dll` not found**: CUDA runtime libraries are missing. The easiest fix is `pip install onnxruntime-gpu[cuda,cudnn]` which installs them as pip packages. Alternatively, install via conda: `conda install nvidia::libcublas=12.4 nvidia::libcufft=11.*`.
+- **`onnxruntime-gpu` and `onnxruntime` conflict**: These packages cannot coexist. If you see only `CPUExecutionProvider` despite having `onnxruntime-gpu` installed, run `pip uninstall onnxruntime onnxruntime-gpu` and then `pip install onnxruntime-gpu[cuda,cudnn]`.
+- **Plugin shows "GPU support is not available"**: Check the napari log output for detailed diagnostics. The plugin always falls back to CPU safely.
+- **CUDA version mismatch**: `onnxruntime-gpu` requires specific CUDA versions. Check the [ONNX Runtime GPU requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements).
 
 ## For developers
 
@@ -94,11 +138,11 @@ Another example is shown below demonstrating a simple "Grain Size Analysis" usin
 
 - **Ideally one creates a new [conda] environment or use an existing environment that already contains [Napari].**
 
-Feel free to create a new environment using the [YAML](env_napari_czann_segment.yml) file at your own risk:
+Feel free to create a new environment using the example [YAML](env_napari_czann_segment.yml) file at your own risk:
 
     cd the-github-repo-with-YAML-file
-    conda env create --file conda_env_napari_czann_segment.yml
-    conda activate napari_czmodel
+    conda env create --file env_napari_czann_segment.yml
+    conda activate napari_czann_segment
 
 - **Install the plugin locally**
 

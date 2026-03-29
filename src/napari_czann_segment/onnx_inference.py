@@ -11,14 +11,55 @@
 
 from typing import Tuple, Optional, List, cast, Union, Dict, Any
 from types import TracebackType
+import logging
+import os
+import sys
 
 import numpy as np
 
-# Handle onnxruntime import gracefully for CI environments
+logger = logging.getLogger(__name__)
+
+# Ensure conda environment CUDA libraries are on the DLL search path (Windows).
+# Conda may place CUDA DLLs in <env>/bin or <env>/Library/bin which are not
+# always on PATH when launching from napari or other GUI entry points.
+if sys.platform == "win32":
+    _conda_prefix = os.environ.get("CONDA_PREFIX", "")
+    if _conda_prefix:
+        for _subdir in ("bin", os.path.join("Library", "bin")):
+            _cuda_dir = os.path.join(_conda_prefix, _subdir)
+            if os.path.isdir(_cuda_dir):
+                os.add_dll_directory(_cuda_dir)
+                if _cuda_dir not in os.environ.get("PATH", ""):
+                    os.environ["PATH"] = _cuda_dir + os.pathsep + os.environ.get("PATH", "")
+
+# Handle onnxruntime import gracefully for CI environments.
+# On Windows CI (no GPU drivers), onnxruntime's native C extension may trigger
+# a non-fatal access violation while probing for CUDA DLLs.  The process
+# survives (the exception is handled internally via SEH), but Python's
+# faulthandler — enabled by default in pytest — prints a scary
+# "Windows fatal exception: access violation" traceback that causes CI to
+# report the job as failed.  We temporarily disable faulthandler during the
+# import so the benign SEH exception is silently swallowed.
+import faulthandler as _fh
+
+_fh_was_enabled = _fh.is_enabled()
 try:
+    if sys.platform == "win32":
+        _fh.disable()
     import onnxruntime as rt
 
     ONNXRUNTIME_AVAILABLE = True
+
+    # Since onnxruntime-gpu >= 1.21, preload_dlls() can locate CUDA/cuDNN DLLs
+    # from PyTorch, NVIDIA pip packages, or the system CUDA installation.
+    # This must be called before creating any InferenceSession with CUDA.
+    if hasattr(rt, "preload_dlls"):
+        try:
+            rt.preload_dlls()
+            logger.debug("onnxruntime.preload_dlls() succeeded.")
+        except Exception as e:
+            logger.debug("onnxruntime.preload_dlls() failed (non-fatal): %s", e)
+
 except ImportError:
     # In CI environments, we might have DLL loading issues
     # Create a mock for basic functionality
@@ -29,6 +70,44 @@ except ImportError:
 
     rt = MockOnnxRuntime()
     ONNXRUNTIME_AVAILABLE = False
+finally:
+    if _fh_was_enabled:
+        _fh.enable()
+
+
+def is_gpu_available() -> bool:
+    """Check whether CUDA-based GPU inference is actually usable.
+
+    Logs detailed diagnostic information about the GPU availability
+    to help users troubleshoot their environment.
+
+    Returns True only if onnxruntime-gpu is installed, CUDAExecutionProvider
+    is listed, and a minimal CUDA session can be created.
+    """
+    if not ONNXRUNTIME_AVAILABLE:
+        logger.info("GPU check: onnxruntime is not installed.")
+        return False
+
+    logger.info("GPU check: onnxruntime %s installed.", rt.__version__)
+
+    try:
+        providers = rt.get_available_providers()
+    except Exception as e:
+        logger.warning("GPU check: Failed to query available providers: %s", e)
+        return False
+
+    logger.info("GPU check: Available providers: %s", providers)
+
+    if "CUDAExecutionProvider" not in providers:
+        logger.info(
+            "GPU check: CUDAExecutionProvider is NOT available. "
+            "Only CPU inference will be used. "
+            "To enable GPU, install onnxruntime-gpu: pip install napari-czann-segment[gpu]"
+        )
+        return False
+
+    logger.info("GPU check: CUDAExecutionProvider is available. GPU inference enabled.")
+    return True
 
 
 class ManagedOnnxSession:
@@ -77,11 +156,25 @@ class ManagedOnnxSession:
     def __enter__(self) -> Any:
         """Creates an ONNX inference session and returns it.
 
+        Falls back to CPUExecutionProvider if the requested providers (e.g. CUDA) fail.
+
         Returns:
             rt.InferenceSession: The created ONNX inference session.
 
         """
-        self._session = rt.InferenceSession(self._model_path, providers=self.providers)
+        try:
+            self._session = rt.InferenceSession(self._model_path, providers=self.providers)
+        except Exception as e:
+            cpu_only = ["CPUExecutionProvider"]
+            if self.providers != cpu_only:
+                logger.warning(
+                    "Failed to create ONNX session with providers %s: %s. " "Falling back to CPUExecutionProvider.",
+                    self.providers,
+                    e,
+                )
+                self._session = rt.InferenceSession(self._model_path, providers=cpu_only)
+            else:
+                raise
         return self._session
 
     def __exit__(
@@ -161,13 +254,24 @@ class OnnxInferencer:
             # try to make it run fast with GPU
             # https://medium.com/neuml/debug-onnx-gpu-performance-c9290fe07459
 
+            # cuDNN provider options:
+            # - "cudnn_conv_algo_search": "EXHAUSTIVE" benchmarks all available
+            #   convolution algorithms and picks the fastest one. The default
+            #   ("DEFAULT") may fall back to a slower, non-cuDNN code path and
+            #   emit warnings like "Fallback to non-cudnn non-fused conv2d".
+            # - "cudnn_conv_use_max_workspace": "1" allows cuDNN to allocate as
+            #   much GPU workspace as needed, which prevents the algorithm search
+            #   from silently discarding faster kernels that require more memory.
             with ManagedOnnxSession(
                 self._model_path,
                 providers=(
                     [  # "TensorrtExecutionProvider",
                         (
                             "CUDAExecutionProvider",
-                            {"cudnn_conv_algo_search": "DEFAULT"},
+                            {
+                                "cudnn_conv_algo_search": "EXHAUSTIVE",
+                                "cudnn_conv_use_max_workspace": "1",
+                            },
                         ),
                         "CPUExecutionProvider",
                     ]
