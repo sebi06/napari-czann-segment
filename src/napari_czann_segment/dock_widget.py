@@ -68,7 +68,7 @@ class TableWidget(QWidget):
         Returns:
         None
         """
-        super(QWidget, self).__init__()
+        super().__init__()
 
         self.layout = QVBoxLayout(self)
         self.model_table = QTableWidget()
