@@ -17,11 +17,17 @@ This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookie
 
 Before installing, please setup a conda environment. If you have never worked with conda environments, go through [this tutorial](https://biapol.github.io/blog/johannes_mueller/anaconda_getting_started/) first.
 
-You can then install `napari-czann-segment` via [pip]:
+You can then install `napari-czann-segment` via [pip]. **You must choose either CPU or GPU support**:
 
-    pip install napari-czann-segment
+**For CPU inference** (works on all platforms):
 
-This installs CPU inference support and works on **Windows, Linux, and macOS** (including Apple Silicon). For GPU acceleration on Windows/Linux with an NVIDIA GPU, see [CPU vs. GPU Inference](#cpu-vs-gpu-inference).
+    pip install napari-czann-segment[cpu]
+
+**For GPU inference** (Windows/Linux with NVIDIA GPU only):
+
+    pip install napari-czann-segment[gpu]
+
+See [CPU vs. GPU Inference](#cpu-vs-gpu-inference) for detailed GPU setup instructions.
 
 ## What does the plugin do
 
@@ -89,9 +95,9 @@ Another example is shown below demonstrating a simple "Grain Size Analysis" usin
 
 ### CPU (default - works everywhere)
 
-By default, the plugin uses **CPU inference** via [ONNX-CPU]. This works on **all platforms** (Windows, Linux, macOS including Apple Silicon) without additional setup:
+CPU inference via [ONNX-CPU] works on **all platforms** (Windows, Linux, macOS including Apple Silicon):
 
-    pip install napari-czann-segment
+    pip install napari-czann-segment[cpu]
 
 When the plugin starts, it checks GPU availability and logs the result. If no GPU is detected, the "Use GPU" checkbox is automatically disabled and all inference runs on CPU.
 
@@ -99,27 +105,51 @@ When the plugin starts, it checks GPU availability and logs the result. If no GP
 
 On macOS (both Intel and Apple Silicon), the plugin works with **CPU inference only**. NVIDIA CUDA is not available on macOS, so the `[gpu]` extra should **not** be installed — `onnxruntime-gpu` does not publish macOS wheels and installation will fail. Simply use:
 
-    pip install napari-czann-segment
+    pip install napari-czann-segment[cpu]
 
 The GPU checkbox will be automatically disabled on macOS.
 
 ### GPU (optional - Windows/Linux with NVIDIA GPU)
 
-GPU acceleration uses [ONNX-GPU] and requires an **NVIDIA GPU** with the correct CUDA libraries. To enable it:
+GPU acceleration uses [ONNX-GPU] and requires an **NVIDIA GPU** with the correct CUDA runtime libraries. These libraries **cannot be installed via pip** — they must come from conda or system CUDA installation.
 
-1. **Install the GPU extra** (recommended - includes CUDA and cuDNN pip packages):
+**Why the conda environment file is recommended:**
+
+The conda environment file ([env_napari_czann_segment.yml](env_napari_czann_segment.yml)) already has the **correct versions of CUDA and cuDNN** tested and working with `onnxruntime-gpu`. You don't need to guess which versions to install:
+
+    conda env create --file env_napari_czann_segment.yml
+
+Then verify GPU support:
+
+    python -c "import onnxruntime; print(onnxruntime.get_available_providers())"
+
+You should see `CUDAExecutionProvider` in the list.
+
+**If you must install manually:**
+
+Different versions of `onnxruntime-gpu` require different CUDA/cuDNN versions. Check the [ONNX Runtime CUDA Provider documentation](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) for your version's requirements.
+
+For example, for `onnxruntime-gpu >= 1.21`, you need CUDA 12.x and cuDNN 9.x:
+
+1. **Install CUDA runtime libraries via conda** (matching your `onnxruntime-gpu` version):
+
+       conda install nvidia::libcublas=12.4 nvidia::libcufft=12 nvidia::libcudart=12 nvidia::cudnn=9
+
+2. **If you previously installed with `[cpu]`, uninstall onnxruntime first**:
+
+       pip uninstall onnxruntime -y
+
+3. **Install the GPU extra**:
 
        pip install napari-czann-segment[gpu]
 
-   This installs `onnxruntime-gpu` along with the required CUDA 12.x and cuDNN 9.x libraries as pip packages, so **no separate CUDA toolkit installation is needed** in most cases.
-
-2. **Verify GPU support** after installation:
+4. **Verify GPU support**:
 
        python -c "import onnxruntime; print(onnxruntime.get_available_providers())"
 
-   You should see `CUDAExecutionProvider` in the list.
+   You should see `CUDAExecutionProvider` in the list. If you only see `CPUExecutionProvider`, the CUDA libraries are missing or incompatible — check the [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) and reinstall.
 
-3. **(Alternative) Use a conda environment** with system CUDA libraries. See the example [conda environment YAML](env_napari_czann_segment.yml):
+4. **(Alternative) Use a conda environment** with system CUDA libraries. See the example [conda environment YAML](env_napari_czann_segment.yml):
 
        conda env create --file env_napari_czann_segment.yml
 
@@ -127,8 +157,9 @@ GPU acceleration uses [ONNX-GPU] and requires an **NVIDIA GPU** with the correct
 
 ### Troubleshooting GPU
 
-- **`cublasLt64_12.dll` or `cufft64_11.dll` not found**: CUDA runtime libraries are missing. The easiest fix is `pip install onnxruntime-gpu[cuda,cudnn]` which installs them as pip packages. Alternatively, install via conda: `conda install nvidia::libcublas=12.4 nvidia::libcufft=11.*`.
-- **`onnxruntime-gpu` and `onnxruntime` conflict**: These packages cannot coexist. If you see only `CPUExecutionProvider` despite having `onnxruntime-gpu` installed, run `pip uninstall onnxruntime onnxruntime-gpu` and then `pip install onnxruntime-gpu[cuda,cudnn]`.
+- **Only seeing `CPUExecutionProvider` after installing `[gpu]`**: You likely have both `onnxruntime` and `onnxruntime-gpu` installed (they conflict). **Solution**: Run `pip uninstall onnxruntime -y` to remove the CPU version, keeping only the GPU version.
+- **Switching from `[cpu]` to `[gpu]`**: First uninstall the CPU version: `pip uninstall onnxruntime -y`, then install with `pip install napari-czann-segment[gpu]`.
+- **`cublasLt64_12.dll` or `cufft64_11.dll` not found**: CUDA runtime libraries are missing. The easiest fix is ensuring you installed with `[gpu]` extra which includes them. Alternatively, install via conda: `conda install nvidia::libcublas=12.4 nvidia::libcufft=11.*`.
 - **Plugin shows "GPU support is not available"**: Check the napari log output for detailed diagnostics. The plugin always falls back to CPU safely.
 - **CUDA version mismatch**: `onnxruntime-gpu` requires specific CUDA versions. Check the [ONNX Runtime GPU requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements).
 

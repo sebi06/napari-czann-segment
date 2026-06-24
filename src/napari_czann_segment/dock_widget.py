@@ -24,6 +24,7 @@ from pathlib import Path
 # from czmodel.pytorch.convert import DefaultConverter
 from czmodel.core.util._extract_model import extract_czann_model
 from czmodel import ModelType
+from napari_czann_segment.czseg_parser import extract_czseg_model
 from typing import Dict
 from qtpy.QtWidgets import (
     QComboBox,
@@ -173,7 +174,12 @@ class segment_with_czann(QWidget):
         self.layout().addWidget(QLabel("Model File Selection"))
 
         # define filter based on file extension
-        model_extension = "*.czann"
+        model_extension = (
+            "ZEISS model files (*.czann *.czmodel);;"
+            "CZANN files (*.czann);;"
+            "CZSEG files (*.czseg);;"
+            "All files (*.*)"
+        )
 
         # create the FileEdit widget and add to the layout and connect it
         self.filename_edit = FileEdit(mode=FileDialogMode.EXISTING_FILE, value="", filter=model_extension)
@@ -314,8 +320,8 @@ class segment_with_czann(QWidget):
         """Get model metadata and store them
 
         This method extracts the model information and path from the czann_file,
-        unpacks the model using DefaultConverter, and stores the model metadata
-        and dictionary representation of the metadata.
+        unpacks the model using the appropriate parser (CZANN or CZSEG), and stores
+        the model metadata and dictionary representation of the metadata.
 
         It also updates the model metadata table, sets the min_overlap_ui and min_overlap_slider values,
         enables/disables certain buttons and sliders based on the tiling_method,
@@ -326,7 +332,23 @@ class segment_with_czann(QWidget):
         # extract the model information and path
         with tempfile.TemporaryDirectory() as temp_path:
 
-            self.model_metadata, self.model_path = extract_czann_model(path=self.czann_file, target_dir=Path(temp_path))
+            # Determine file type and use appropriate parser
+            file_extension = Path(self.czann_file).suffix.lower()
+
+            if file_extension == ".czseg":
+                self.logger.info("Detected CZSEG file format")
+                self.model_metadata, self.model_path = extract_czseg_model(
+                    path=self.czann_file, target_dir=Path(temp_path)
+                )
+            elif file_extension in [".czann", ".czmodel"]:
+                self.logger.info(f"Detected {file_extension.upper()} file format")
+                self.model_metadata, self.model_path = extract_czann_model(
+                    path=self.czann_file, target_dir=Path(temp_path)
+                )
+            else:
+                self.logger.error(f"Unsupported file format: {file_extension}")
+                warnings.warn(f"Unsupported model file format: {file_extension}")
+                return
 
         # get model metadata as dictionary
         self.model_metadata_dict = self.model_metadata._asdict()

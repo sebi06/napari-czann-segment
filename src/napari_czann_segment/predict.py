@@ -25,12 +25,12 @@ from tqdm import tqdm, trange
 from tiler import Tiler, Merger
 
 from czmodel.core.util._extract_model import extract_czann_model
+from napari_czann_segment.czseg_parser import extract_czseg_model
 from pathlib import Path
 from .utils import TileMethod, SupportedWindow
 from ryomen import Slicer
 from .utils import setup_log
 import xarray as xr
-
 
 logger = setup_log("Napari-CZANN-predict")
 
@@ -76,8 +76,17 @@ def predict_ndarray(
     # extract the model information and path and to the prediction
     with tempfile.TemporaryDirectory() as temp_path:
 
-        # this is the new way of unpacking using the czann files
-        modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path))
+        # Determine file type and use appropriate parser
+        file_extension = Path(czann_file).suffix.lower()
+
+        if file_extension == ".czseg":
+            logger.info("Detected CZSEG file format")
+            modelmd, model_path = extract_czseg_model(path=czann_file, target_dir=Path(temp_path))
+        elif file_extension in [".czann", ".czmodel"]:
+            logger.info(f"Detected {file_extension.upper()} file format")
+            modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path))
+        else:
+            raise ValueError(f"Unsupported model file format: {file_extension}")
 
         # get the used bordersize - is needed for the tiling
         if isinstance(border, str) and border == "auto":

@@ -22,7 +22,12 @@ logger = logging.getLogger(__name__)
 # Ensure conda environment CUDA libraries are on the DLL search path (Windows).
 # Conda may place CUDA DLLs in <env>/bin or <env>/Library/bin which are not
 # always on PATH when launching from napari or other GUI entry points.
+# Also covers pip-installed nvidia-* packages (e.g. nvidia-cublas-cu12) which
+# place their DLLs under site-packages/nvidia/<pkg>/bin/.
 if sys.platform == "win32":
+    import site
+
+    # conda CUDA directories
     _conda_prefix = os.environ.get("CONDA_PREFIX", "")
     if _conda_prefix:
         for _subdir in ("bin", os.path.join("Library", "bin")):
@@ -31,6 +36,17 @@ if sys.platform == "win32":
                 os.add_dll_directory(_cuda_dir)
                 if _cuda_dir not in os.environ.get("PATH", ""):
                     os.environ["PATH"] = _cuda_dir + os.pathsep + os.environ.get("PATH", "")
+
+    # pip-installed nvidia-*-cu12 packages (site-packages/nvidia/<pkg>/bin/)
+    for _sp in site.getsitepackages():
+        _nvidia_dir = os.path.join(_sp, "nvidia")
+        if os.path.isdir(_nvidia_dir):
+            for _pkg in os.listdir(_nvidia_dir):
+                _bin_dir = os.path.join(_nvidia_dir, _pkg, "bin")
+                if os.path.isdir(_bin_dir):
+                    os.add_dll_directory(_bin_dir)
+                    if _bin_dir not in os.environ.get("PATH", ""):
+                        os.environ["PATH"] = _bin_dir + os.pathsep + os.environ.get("PATH", "")
 
 # Handle onnxruntime import gracefully for CI environments.
 # On Windows CI (no GPU drivers), onnxruntime's native C extension may trigger
@@ -48,6 +64,11 @@ try:
         _fh.disable()
     import onnxruntime as rt
 
+    # Verify the module actually has the required methods
+    # (namespace packages may import successfully but be empty)
+    if not hasattr(rt, "get_available_providers") or not hasattr(rt, "InferenceSession"):
+        raise AttributeError("onnxruntime module is incomplete (missing required methods)")
+
     ONNXRUNTIME_AVAILABLE = True
 
     # Since onnxruntime-gpu >= 1.21, preload_dlls() can locate CUDA/cuDNN DLLs
@@ -60,7 +81,7 @@ try:
         except Exception as e:
             logger.debug("onnxruntime.preload_dlls() failed (non-fatal): %s", e)
 
-except ImportError:
+except (ImportError, AttributeError):
     # In CI environments, we might have DLL loading issues
     # Create a mock for basic functionality
     class MockOnnxRuntime:
@@ -88,7 +109,8 @@ def is_gpu_available() -> bool:
         logger.info("GPU check: onnxruntime is not installed.")
         return False
 
-    logger.info("GPU check: onnxruntime %s installed.", rt.__version__)
+    version = getattr(rt, "__version__", "unknown")
+    logger.info("GPU check: onnxruntime %s installed.", version)
 
     try:
         providers = rt.get_available_providers()
