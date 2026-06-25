@@ -12,7 +12,8 @@
 import numpy as np
 import tempfile
 import itertools
-from typing import Tuple, Union, Any
+import math
+from typing import Tuple, Union, Any, List
 import dask.array as da
 from .onnx_inference import OnnxInferencer
 from czmodel import ModelType, ModelMetadata
@@ -43,6 +44,7 @@ def predict_ndarray(
     do_rescale: bool = True,
     tiling_method: TileMethod = TileMethod.CZTILE,
     merge_window: SupportedWindow = SupportedWindow.none,
+    batch_size: int = 8,
 ) -> Tuple[Any, Union[np.ndarray, da.Array]]:
     """Run the prediction on a multidimensional numpy array
 
@@ -54,6 +56,7 @@ def predict_ndarray(
         do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True.
         tiling_method (TileMethod, optional): specify the desired tiling method. Defaults to TileMethod.CZITILE
         merge_window (SupportedWindow, optional): Specifies which window function to use for Tiler only. Defaults to SupportedWindow.boxcar
+        batch_size (int, optional): batch size for inference (higher values improve GPU utilization). Defaults to 8.
 
     Returns:
         Tuple[Any, Union[np.ndarray, da.Array]]: Return model metadata and the segmented multidimensional array
@@ -63,11 +66,22 @@ def predict_ndarray(
     if isinstance(img, xr.DataArray):
         img = img.data
 
-    # seg_complete = da.zeros_like(img, chunks=img.shape)
-    seg_complete = np.zeros_like(img)
+    # Determine if input has an explicit channel dimension at the end
+    # Expected format: [..., Y, X, C] where C is the number of color channels (1, 3, 4, etc.)
+    # We iterate over all dimensions except the last 3: Y, X, C
+    has_channel_dim = len(img.shape) > 3 and img.shape[-1] <= 10
 
-    # get the shape without the XY dimensions
-    shape_woxy = img.shape[:-2]
+    if has_channel_dim:
+        shape_woxy = img.shape[:-3]  # Remove Y, X, C dimensions
+        # Output shape is [..., Y, X] (no channel dimension in output - it's a label map)
+        output_shape = img.shape[:-1]  # Remove only the channel dimension
+    else:
+        shape_woxy = img.shape[:-2]  # Remove Y, X dimensions
+        # Output shape same as input for 2D images
+        output_shape = img.shape
+
+    # seg_complete will hold the 2D segmentation/regression output
+    seg_complete = np.zeros(output_shape, dtype=img.dtype)
 
     # create the "values" each for-loop iterates over
     loopover = [range(s) for s in shape_woxy]
@@ -96,7 +110,7 @@ def predict_ndarray(
             bordersize = border
 
         # create ONNX inferencer once and use it for every tile
-        inf = OnnxInferencer(str(model_path))
+        inf = OnnxInferencer(str(model_path), batch_size=batch_size)
 
         # loop over all dimensions
         for idx in prod:
@@ -160,145 +174,161 @@ def predict_tiles2d(
         Union[np.ndarray, da.Array]: segmented larger 2d image
     """
 
+    # Handle both 2D grayscale (Y, X) and 3D color (Y, X, C) images
     if img2d.ndim == 2:
-
-        # new_img2d = da.zeros_like(img2d, chunks=(img2d.shape[0], img2d.shape[1]))
-        new_img2d = np.zeros_like(img2d)
-
-        if tiling_method is TileMethod.CZTILE:
-
-            # create a "tile" by specifying the desired tile dimension and the
-            # minimum required overlap between tiles (depends on the processing)
-
-            tiler = AlmostEqualBorderFixedTotalAreaStrategy2D(
-                width=TileInput(model_md.input_shape[0], min_border_length=min_border_width),
-                height=TileInput(model_md.input_shape[1], min_border_length=min_border_width),
-            )
-            # create the tiles --> region2d = (x, y, w, h)
-            region2d = Region2D(x=0, y=0, w=img2d.shape[1], h=img2d.shape[0])
-            tiles = tiler.calculate_2d_tiles(region2d=region2d)
-
-            # loop over all tiles
-            for tile in tqdm(tiles):
-
-                # get a single frame based on the roi
-                tile2d = img2d[
-                    tile.roi.y : tile.roi.y + tile.roi.h,
-                    tile.roi.x : tile.roi.x + tile.roi.w,
-                ]
-
-                # run the prediction
-                if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
-
-                    tile2d = process_semantic(
-                        tile2d,
-                        inferencer=inferencer,
-                        use_gpu=use_gpu,
-                        do_rescale=do_rescale,
-                    )
-
-                    # place result inside the new image
-                    new_img2d[
-                        tile.roi.y : tile.roi.y + tile.roi.h,
-                        tile.roi.x : tile.roi.x + tile.roi.w,
-                    ] = tile2d
-
-                if model_md.model_type == ModelType.REGRESSION:
-
-                    # get the prediction for a single tile
-                    tile2d = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
-
-                    # place result inside the new image
-                    new_img2d[
-                        tile.roi.y : tile.roi.y + tile.roi.h,
-                        tile.roi.x : tile.roi.x + tile.roi.w,
-                    ] = tile2d[..., 0]
-
-        if tiling_method is TileMethod.TILER:
-
-            if merge_window is SupportedWindow.overlaptile:
-                merge_window_name = "overlap-tile"
-            else:
-                merge_window_name = merge_window.name
-
-            if merge_window is SupportedWindow.none:
-                merge_window_name = "boxcar"
-
-            tiler = Tiler(
-                data_shape=img2d.shape,
-                tile_shape=(model_md.input_shape[0], model_md.input_shape[1]),
-                overlap=(min_border_width, min_border_width),
-                channel_dimension=None,
-                mode="reflect",
-            )
-
-            # Setup merging parameters
-            if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
-                logger.info(f"Using Merging Window: {merge_window_name}")
-                merger = Merger(tiler, window=merge_window_name)
-
-                for tile_id in trange(tiler.n_tiles):
-                    tile2d = tiler.get_tile(img2d, tile_id)
-
-                    # do the processing
-                    tile2d = process_semantic(
-                        tile2d,
-                        inferencer=inferencer,
-                        use_gpu=use_gpu,
-                        do_rescale=do_rescale,
-                    )
-
-                    merger.add(tile_id, tile2d)
-
-                new_img2d = merger.merge(unpad=True)
-
-            if model_md.model_type == ModelType.REGRESSION:
-                merger = Merger(tiler, window=merge_window_name)
-
-                for tile_id in trange(tiler.n_tiles):
-                    tile2d = tiler.get_tile(img2d, tile_id)
-
-                    # get the prediction for a single tile
-                    tile2d = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
-
-                    merger.add(tile_id, tile2d[..., 0])
-
-                new_img2d = merger.merge(unpad=True)
-
-        if tiling_method is TileMethod.RYOMEN:
-
-            slices = Slicer(
-                img2d,
-                crop_size=(model_md.input_shape[0], model_md.input_shape[1]),
-                overlap=(min_border_width, min_border_width),
-                pad=True,
-            )
-
-            # Setup merging parameters
-            if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
-
-                for tile2d, source, destination in tqdm(slices):
-
-                    tile2d = process_semantic(
-                        tile2d,
-                        inferencer=inferencer,
-                        use_gpu=use_gpu,
-                        do_rescale=do_rescale,
-                    )
-
-                    new_img2d[destination] = tile2d[source]
-
-            if model_md.model_type == ModelType.REGRESSION:
-
-                for tile2d, source, destination in tqdm(slices):
-
-                    # get the prediction for a single tile
-                    tile2d = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
-
-                    new_img2d[destination] = tile2d[source]
-
+        # Grayscale image: shape is (Y, X)
+        height, width = img2d.shape
+        channels = None
+    elif img2d.ndim == 3:
+        # Color/multi-channel image: shape is (Y, X, C)
+        height, width, channels = img2d.shape
     else:
         raise tile_has_wrong_dimensionality(img2d.ndim)
+
+    # Output is always 2D (Y, X) even if input has channels, because it's a label/regression map
+    new_img2d = np.zeros((height, width), dtype=img2d.dtype)
+
+    input_channels = model_md.input_shape[-1]
+    batch_sz = inferencer.batch_size
+
+    # ------------------------------------------------------------------
+    # Helper: preprocess one extracted tile array into a float32 tensor
+    # with shape (H, W, C) ready for inference.
+    # ------------------------------------------------------------------
+    def _prep(t: np.ndarray) -> np.ndarray:
+        if isinstance(t, da.Array):
+            t = t.compute()
+        if do_rescale:
+            t = t.astype(np.float32) / np.iinfo(img2d.dtype).max
+        else:
+            t = t.astype(np.float32)
+        if t.ndim == 2:
+            t = t[..., np.newaxis]
+        if t.shape[-1] != input_channels:
+            raise ValueError(
+                f"Channel mismatch: tile has {t.shape[-1]} channel(s), " f"but model expects {input_channels}."
+            )
+        return t
+
+    # ------------------------------------------------------------------
+    # Helper: extract raw tile from img2d given a cztile roi
+    # ------------------------------------------------------------------
+    def _extract(roi) -> np.ndarray:
+        if channels is None:
+            return img2d[roi.y : roi.y + roi.h, roi.x : roi.x + roi.w]
+        return img2d[roi.y : roi.y + roi.h, roi.x : roi.x + roi.w, :]
+
+    if tiling_method is TileMethod.CZTILE:
+
+        tiler = AlmostEqualBorderFixedTotalAreaStrategy2D(
+            width=TileInput(model_md.input_shape[0], min_border_length=min_border_width),
+            height=TileInput(model_md.input_shape[1], min_border_length=min_border_width),
+        )
+        region2d = Region2D(x=0, y=0, w=width, h=height)
+        tiles = list(tiler.calculate_2d_tiles(region2d=region2d))
+        n_batches = math.ceil(len(tiles) / batch_sz)
+
+        with tqdm(total=len(tiles), desc="Tiles (CZTILE)", unit="tile") as pbar:
+            for batch_start in range(0, len(tiles), batch_sz):
+                batch_tiles = tiles[batch_start : batch_start + batch_sz]
+                batch_imgs = [_prep(_extract(t.roi)) for t in batch_tiles]
+
+                if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
+                    results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
+                    for t, res in zip(batch_tiles, results):
+                        new_img2d[
+                            t.roi.y : t.roi.y + t.roi.h,
+                            t.roi.x : t.roi.x + t.roi.w,
+                        ] = (
+                            np.argmax(res, axis=-1) + 1
+                        )
+
+                elif model_md.model_type == ModelType.REGRESSION:
+                    results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
+                    for t, res in zip(batch_tiles, results):
+                        new_img2d[
+                            t.roi.y : t.roi.y + t.roi.h,
+                            t.roi.x : t.roi.x + t.roi.w,
+                        ] = res[..., 0]
+
+                pbar.update(len(batch_tiles))
+
+    if tiling_method is TileMethod.TILER:
+
+        if merge_window is SupportedWindow.overlaptile:
+            merge_window_name = "overlap-tile"
+        elif merge_window is SupportedWindow.none:
+            merge_window_name = "boxcar"
+        else:
+            merge_window_name = merge_window.name
+
+        channel_dim = 2 if channels is not None else None
+
+        tiler = Tiler(
+            data_shape=img2d.shape,
+            tile_shape=(model_md.input_shape[0], model_md.input_shape[1]),
+            overlap=(min_border_width, min_border_width),
+            channel_dimension=channel_dim,
+            mode="reflect",
+        )
+
+        if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
+            merger = Merger(tiler, window=merge_window_name)
+
+            with tqdm(total=tiler.n_tiles, desc="Tiles (TILER)", unit="tile") as pbar:
+                for batch_start in range(0, tiler.n_tiles, batch_sz):
+                    ids = list(range(batch_start, min(batch_start + batch_sz, tiler.n_tiles)))
+                    batch_imgs = [_prep(tiler.get_tile(img2d, i)) for i in ids]
+                    results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
+                    for tile_id, res in zip(ids, results):
+                        merger.add(tile_id, np.argmax(res, axis=-1) + 1)
+                    pbar.update(len(ids))
+
+            new_img2d = merger.merge(unpad=True)
+
+        elif model_md.model_type == ModelType.REGRESSION:
+            merger = Merger(tiler, window=merge_window_name)
+
+            with tqdm(total=tiler.n_tiles, desc="Tiles (TILER)", unit="tile") as pbar:
+                for batch_start in range(0, tiler.n_tiles, batch_sz):
+                    ids = list(range(batch_start, min(batch_start + batch_sz, tiler.n_tiles)))
+                    batch_imgs = [_prep(tiler.get_tile(img2d, i)) for i in ids]
+                    results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
+                    for tile_id, res in zip(ids, results):
+                        merger.add(tile_id, res[..., 0])
+                    pbar.update(len(ids))
+
+            new_img2d = merger.merge(unpad=True)
+
+    if tiling_method is TileMethod.RYOMEN:
+
+        slices = Slicer(
+            img2d,
+            crop_size=(model_md.input_shape[0], model_md.input_shape[1]),
+            overlap=(min_border_width, min_border_width),
+            pad=True,
+        )
+        all_slices = list(slices)  # [(tile, source, destination), ...]
+
+        if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
+            with tqdm(total=len(all_slices), desc="Tiles (RYOMEN)", unit="tile") as pbar:
+                for batch_start in range(0, len(all_slices), batch_sz):
+                    batch = all_slices[batch_start : batch_start + batch_sz]
+                    batch_imgs = [_prep(t) for t, _, _ in batch]
+                    results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
+                    for (_, src, dst), res in zip(batch, results):
+                        new_img2d[dst] = (np.argmax(res, axis=-1) + 1)[src]
+                    pbar.update(len(batch))
+
+        elif model_md.model_type == ModelType.REGRESSION:
+            with tqdm(total=len(all_slices), desc="Tiles (RYOMEN)", unit="tile") as pbar:
+                for batch_start in range(0, len(all_slices), batch_sz):
+                    batch = all_slices[batch_start : batch_start + batch_sz]
+                    batch_imgs = [_prep(t) for t, _, _ in batch]
+                    results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
+                    for (_, src, dst), res in zip(batch, results):
+                        new_img2d[dst] = res[..., 0][src]
+                    pbar.update(len(batch))
 
     return new_img2d
 
@@ -308,15 +338,18 @@ def process_semantic(
     inferencer: OnnxInferencer,
     use_gpu: bool = False,
     do_rescale: bool = True,
+    input_channels: int = 1,
 ):
     """
     Process the semantic segmentation for a given 2D tile.
 
     Args:
         tile2d (Union[np.ndarray, da.Array]): The input 2D tile for semantic segmentation.
+            Can be (H, W) or (H, W, C) where C is the channel dimension.
         inferencer (OnnxInferencer): The inferencer object used for prediction.
         use_gpu (bool, optional): Whether to use GPU for prediction. Defaults to False.
         do_rescale (bool, optional): Whether to rescale the input tile. Defaults to True.
+        input_channels (int, optional): Expected number of input channels from model. Defaults to 1.
 
     Returns:
         np.ndarray: The processed semantic segmentation result for the input tile.
@@ -330,8 +363,24 @@ def process_semantic(
         max_value = np.iinfo(tile2d.dtype).max
         tile2d = tile2d / (max_value - 1)
 
+    # Handle channel dimension
+    # If tile has shape (H, W), add channel dimension
+    if tile2d.ndim == 2:
+        tile2d = tile2d[..., np.newaxis]
+
+    # Now tile2d has shape (H, W, C) where C is current channels
+    current_channels = tile2d.shape[-1]
+
+    # Verify channel count matches what the model expects
+    if current_channels != input_channels:
+        raise ValueError(
+            f"Channel mismatch: input image has {current_channels} channel(s), "
+            f"but model expects {input_channels}. "
+            f"Please provide an image whose channel count matches the model."
+        )
+
     # get the prediction for a single tile
-    tile2d = inferencer.predict([tile2d[..., np.newaxis]], use_gpu=use_gpu)[0]
+    tile2d = inferencer.predict([tile2d], use_gpu=use_gpu)[0]
 
     # get the labels and add 1 to reflect the real values
     tile2d = np.argmax(tile2d, axis=-1) + 1

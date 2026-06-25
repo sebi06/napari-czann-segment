@@ -164,6 +164,7 @@ class segment_with_czann(QWidget):
         self.model_metadata = None
         self.czann_file: str = "mymodel.czann"
         self.use_gpu: bool = True
+        self.batch_size: int = 32
         self.tiling_method = TileMethod.CZTILE
         self.merge_method = SupportedWindow.none
 
@@ -175,7 +176,7 @@ class segment_with_czann(QWidget):
 
         # define filter based on file extension
         model_extension = (
-            "ZEISS model files (*.czann *.czmodel);;"
+            "ZEISS model files (*.czann *.czseg);;"
             "CZANN files (*.czann);;"
             "CZSEG files (*.czseg);;"
             "All files (*.*)"
@@ -249,6 +250,24 @@ class segment_with_czann(QWidget):
         )
         self.use_gpu_checkbox.clicked.connect(self._use_gpu_changed)
         self.layout().addWidget(self.use_gpu_checkbox.native)
+
+        # add batch size slider for GPU inference optimization
+        self.batch_size_label = QLabel("Batch Size (GPU Optimization)")
+        self.batch_size_slider = Slider(
+            orientation="horizontal",
+            label="Batch Size",
+            value=32,
+            min=1,
+            max=256,
+            step=1,
+            readout=True,
+            tooltip="Tiles processed per GPU forward pass. 32–128 is a good range for 8 GB VRAM with 256×256 tiles; increase until you see OOM errors.",
+            tracking=False,
+        )
+
+        self.layout().addWidget(self.batch_size_label)
+        self.layout().addWidget(self.batch_size_slider.native)
+        self.batch_size_slider.changed.connect(self._batch_size_changed)
 
         # check GPU availability and disable checkbox if not usable
         self._gpu_available = is_gpu_available()
@@ -404,6 +423,7 @@ class segment_with_czann(QWidget):
         self.logger.info("CZANN ModelType: " + str(self.model_metadata.model_type))
         self.logger.info("Minimum Tile Overlap: " + str(self.min_overlap_ui))
         self.logger.info("Use GPU acceleration: " + str(self.use_gpu))
+        self.logger.info("Batch Size: " + str(self.batch_size))
 
         if self.model_metadata.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
@@ -415,6 +435,7 @@ class segment_with_czann(QWidget):
                 do_rescale=True,
                 tiling_method=self.tiling_method,
                 merge_window=self.merge_method,
+                batch_size=self.batch_size,
             )
 
             self.logger.info(f"Input Data Shape: {img_layer.data.shape}")
@@ -451,6 +472,7 @@ class segment_with_czann(QWidget):
                 use_gpu=self.use_gpu,
                 do_rescale=False,
                 merge_window=self.merge_method,
+                batch_size=self.batch_size,
             )
 
             self.logger.info(f"Input Data Shape: {img_layer.data.shape}")
@@ -537,6 +559,15 @@ class segment_with_czann(QWidget):
         if not self.use_gpu_checkbox.value:
             self.use_gpu = False
             self.logger.info("Use CPU for inference.")
+
+    def _batch_size_changed(self):
+        """
+        Callback method triggered when the batch size slider value changes.
+        Updates the batch_size attribute and logs the new batch size.
+        Higher values improve GPU utilization but require more VRAM.
+        """
+        self.batch_size = self.batch_size_slider.value
+        self.logger.info(f"Batch Size: {self.batch_size}")
 
     def _tiling_method_changed(self):
         """

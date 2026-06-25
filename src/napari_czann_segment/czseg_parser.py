@@ -146,11 +146,25 @@ def parse_czseg_xml(xml_path: Path, model_path: Optional[Path] = None) -> dict:
 
     # Determine input/output shapes
     # Input: [height, width, channels]
-    # For now, assume single channel input (can be refined based on Channels element)
+    # Parse PixelType from the first <Channels><Item> to determine the actual channel count.
+    # Counting <Item> elements would give 1 for Bgr24 (single item, 3 channels), which is wrong.
+    _PIXEL_TYPE_CHANNELS = {
+        "Bgr24": 3,
+        "Rgb24": 3,
+        "Bgra32": 4,
+        "Rgba32": 4,
+        "Gray8": 1,
+        "Gray16": 1,
+        "Gray32Float": 1,
+    }
     channels_elem = root.find("Channels")
-    num_input_channels = 1  # default
+    num_input_channels = 1  # default (grayscale)
     if channels_elem is not None:
-        num_input_channels = len(channels_elem.findall("Item"))
+        items = channels_elem.findall("Item")
+        if items:
+            pixel_type = items[0].get("PixelType", "Gray8")
+            num_input_channels = _PIXEL_TYPE_CHANNELS.get(pixel_type, 1)
+            logger.info(f"Parsed PixelType='{pixel_type}' → {num_input_channels} input channel(s)")
 
     input_shape = [tile_height, tile_width, num_input_channels]
 

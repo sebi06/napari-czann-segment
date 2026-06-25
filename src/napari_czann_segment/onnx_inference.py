@@ -219,14 +219,23 @@ class ManagedOnnxSession:
 class OnnxInferencer:
     """Inferencer class to load and evaluate models in ONNX format."""
 
-    def __init__(self, model_path: str) -> None:
+    def __init__(self, model_path: str, batch_size: int = 8) -> None:
         """Creates an instance of a ONNX inferencer.
 
         Arguments:
             model_path: The path to the model on disk.
+            batch_size: Number of images to process in a single batch (default: 8).
+                       Increase for faster inference on GPUs with more memory.
+                       Set to 1 to revert to sequential processing (uses less memory).
         """
         super().__init__()
         self._model_path = model_path
+        self._batch_size = batch_size
+
+    @property
+    def batch_size(self) -> int:
+        """Number of images processed per GPU forward pass."""
+        return self._batch_size
 
     def predict(self, x: List[np.ndarray], use_gpu: bool = False) -> List[np.ndarray]:
         """Evaluates the underlying model with the given input _data.
@@ -239,31 +248,11 @@ class OnnxInferencer:
             The prediction for the given input _data.
         """
 
-        def predict_one(sess: Any, batch_elem: np.ndarray) -> np.ndarray:
-            """Predicts with a batch size of 1 to not risk memory issues.
-
-            Arguments:
-                sess: The inference session containing the loaded model.
-                batch_elem: One element of a batch to be used for prediction.
-
-            Returns:
-                The prediction for the provided batch element.
-            """
-            batch_elem = batch_elem[np.newaxis]
-            input_name = sess.get_inputs()[0].name
-            output_name = sess.get_outputs()[0].name
-
-            # ONNX can only handle float32
-            batch_elem = batch_elem.astype(np.float32)
-            input_dict = {input_name: batch_elem}
-            result = sess.run([output_name], input_dict)[0]
-
-            if len(result) != 1:
-                raise AssertionError("The batch size has changed during ANN model execution")
-            return result[0]
-
         def _predict_batch(_x: List[np.ndarray], use_gpu: bool = True) -> List[np.ndarray]:
             """Run prediction on a batch of images.
+
+            Processes images in batches to improve GPU utilization and reduce
+            inference overhead compared to sequential per-image processing.
 
             Arguments:
                 _x: The batch of images to be predicted.
@@ -272,9 +261,6 @@ class OnnxInferencer:
             Returns:
                  The predictions for the given batch of images.
             """
-
-            # try to make it run fast with GPU
-            # https://medium.com/neuml/debug-onnx-gpu-performance-c9290fe07459
 
             # cuDNN provider options:
             # - "cudnn_conv_algo_search": "EXHAUSTIVE" benchmarks all available
@@ -302,8 +288,37 @@ class OnnxInferencer:
                 ),
             ) as sess:
 
-                # We predict with a batch size of 1 to not risk memory issues
-                prediction_list = [predict_one(sess, batch_elem) for batch_elem in _x]
+                input_name = sess.get_inputs()[0].name
+                output_name = sess.get_outputs()[0].name
+
+                # Check if the model supports dynamic batching.
+                # ONNX models exported with a fixed batch size (e.g. 1) cannot
+                # receive a tensor with N > 1 on the batch axis.  When the batch
+                # dimension is an integer we must process one image at a time.
+                model_batch_dim = sess.get_inputs()[0].shape[0]
+                effective_batch = 1 if isinstance(model_batch_dim, int) else self._batch_size
+                if effective_batch == 1 and self._batch_size > 1:
+                    logger.debug(
+                        "Model has fixed batch size (%s); falling back to " "single-image inference.",
+                        model_batch_dim,
+                    )
+
+                prediction_list = []
+
+                for batch_start in range(0, len(_x), effective_batch):
+                    batch_end = min(batch_start + effective_batch, len(_x))
+                    batch_images = _x[batch_start:batch_end]
+
+                    # Stack images into a single batch tensor
+                    # Shape: (N, H, W, C) where N is the effective batch size
+                    batch_tensor = np.stack(batch_images, axis=0).astype(np.float32)
+
+                    # Run inference on entire batch at once (single forward pass)
+                    batch_result = sess.run([output_name], {input_name: batch_tensor})[0]
+
+                    # Unstack results back to per-image format
+                    for i in range(batch_end - batch_start):
+                        prediction_list.append(batch_result[i])
 
                 return prediction_list
 
