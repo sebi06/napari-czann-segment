@@ -13,11 +13,13 @@ from typing import Tuple, Optional, List, cast, Union, Dict, Any
 from types import TracebackType
 import logging
 import os
+import subprocess
 import sys
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+_CUDA_SESSION_USABLE_CACHE: Dict[str, bool] = {}
 
 # Ensure conda environment CUDA libraries are on the DLL search path (Windows).
 # Conda may place CUDA DLLs in <env>/bin or <env>/Library/bin which are not
@@ -128,7 +130,90 @@ def is_gpu_available() -> bool:
         )
         return False
 
-    logger.info("GPU check: CUDAExecutionProvider is available. GPU inference enabled.")
+    logger.info(
+        "GPU check: CUDAExecutionProvider is listed. "
+        "A per-model CUDA session preflight will run before GPU inference."
+    )
+    return True
+
+
+def _is_cuda_session_usable(model_path: str) -> bool:
+    """Check CUDA session creation in a child process.
+
+    Some CUDA/cuDNN/cuBLAS library mismatches abort the Python process from
+    native code instead of raising a catchable Python exception.  Running the
+    CUDA session probe in a subprocess lets the napari process fall back to CPU
+    safely when that happens.
+    """
+
+    cached = _CUDA_SESSION_USABLE_CACHE.get(model_path)
+    if cached is not None:
+        return cached
+
+    code = """
+import sys
+import numpy as np
+import onnxruntime as rt
+
+model_path = sys.argv[1]
+providers = [
+    (
+        "CUDAExecutionProvider",
+        {
+            "cudnn_conv_algo_search": "EXHAUSTIVE",
+            "cudnn_conv_use_max_workspace": "1",
+        },
+    ),
+    "CPUExecutionProvider",
+]
+
+if hasattr(rt, "preload_dlls"):
+    try:
+        rt.preload_dlls()
+    except Exception:
+        pass
+
+sess = rt.InferenceSession(model_path, providers=providers)
+active = sess.get_providers()
+if "CUDAExecutionProvider" not in active:
+    raise RuntimeError(f"CUDAExecutionProvider was not activated. Active providers: {active}")
+
+input_info = sess.get_inputs()[0]
+input_shape = [1 if not isinstance(dim, int) else dim for dim in input_info.shape]
+input_shape[0] = 1
+dummy = np.zeros(input_shape, dtype=np.float32)
+sess.run([sess.get_outputs()[0].name], {input_info.name: dummy})
+"""
+
+    env = os.environ.copy()
+    env.setdefault("PYTHONDONTWRITEBYTECODE", "1")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", code, model_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30,
+            env=env,
+        )
+    except Exception as e:
+        logger.warning("CUDA preflight failed before inference: %s. Falling back to CPU.", e)
+        _CUDA_SESSION_USABLE_CACHE[model_path] = False
+        return False
+
+    if result.returncode != 0:
+        stderr = result.stderr.strip()
+        logger.warning(
+            "CUDA preflight failed for model %s with return code %s. "
+            "Falling back to CPU to avoid crashing napari. stderr: %s",
+            model_path,
+            result.returncode,
+            stderr[-1000:],
+        )
+        _CUDA_SESSION_USABLE_CACHE[model_path] = False
+        return False
+
+    _CUDA_SESSION_USABLE_CACHE[model_path] = True
     return True
 
 
@@ -321,6 +406,9 @@ class OnnxInferencer:
                         prediction_list.append(batch_result[i])
 
                 return prediction_list
+
+        if use_gpu and not _is_cuda_session_usable(self._model_path):
+            use_gpu = False
 
         return _predict_batch(x, use_gpu=use_gpu)
 

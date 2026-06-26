@@ -272,7 +272,11 @@ class segment_with_czann(QWidget):
         # check GPU availability and disable checkbox if not usable
         self._gpu_available = is_gpu_available()
         if self._gpu_available:
-            self.logger.info("GPU support is available. CUDA will be used for inference when the checkbox is enabled.")
+            self.logger.info(
+                "CUDAExecutionProvider is listed by ONNX Runtime. "
+                "A model-specific CUDA preflight will run before inference; "
+                "CPU will be used automatically if CUDA cannot execute the model."
+            )
         else:
             self.use_gpu = False
             self.use_gpu_checkbox.value = False
