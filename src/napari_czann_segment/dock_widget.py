@@ -432,7 +432,7 @@ class segment_with_czann(QWidget):
                 img_layer.data,
                 border=self.min_overlap_ui,
                 use_gpu=self.use_gpu,
-                do_rescale=True,
+                do_rescale=getattr(self.model_metadata, "scaling", True),
                 tiling_method=self.tiling_method,
                 merge_window=self.merge_method,
                 batch_size=self.batch_size,

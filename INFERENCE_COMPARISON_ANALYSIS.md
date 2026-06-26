@@ -1,13 +1,109 @@
 # ONNX Inference Comparison: napari-czann-segment vs. SegmentationService
 
 ## Summary
-napari-czann-segment and SegmentationService both use ONNX Runtime for inference. While they produce **identical results for Test 1** (PGC model), **Test 2** (UIncep3 model) fails in napari but works in SegmentationService. **The root cause is likely RGB vs. BGR color channel handling**: The UIncep3 model metadata specifies it expects BGR24 input format (`<Channels><Item PixelType="Bgr24" /></Channels>`), but napari loads images in RGB format (standard for image viewers), while SegmentationService may be handling BGR conversion. This channel mismatch causes the model to process color data in the wrong order, producing segmentation artifacts.
+napari-czann-segment and SegmentationService both use ONNX Runtime for inference. While they produce **identical results for Test 1** (PGC model), **Test 2** (UIncep3 model) fails in napari but works in SegmentationService.
+
+**Updated conclusion (June 26, 2026): the primary root cause is intensity scaling, not tiling and not RGB/BGR alone.** The UIncep3 `.czseg` metadata contains `<ScaleInputsByBitdepth>false</ScaleInputsByBitdepth>`, but the napari widget forced `do_rescale=True` for all semantic segmentation models. This incorrectly compressed `uint8` input values from `0..255` to `0..1` for a model that expects unscaled values.
+
+RGB/BGR channel order may still matter after the correct intensity scale is used: the model declares `PixelType="Bgr24"`. However, earlier tests showing RGB/BGR conversion had no effect were misleading because they were performed while the input was incorrectly rescaled.
+
+The CZI loading path was also clarified: images are loaded through the `napari-czitools` plugin, which uses `czitools`/`pylibCZIrw` under the hood. For `Image 12 small.czi`, `napari-czitools` returns an xarray layer with dimensions `('S', 'T', 'Z', 'Y', 'X', 'A')` and shape `(1, 1, 1, 4205, 5238, 3)`, so the RGB/BGR sample axis is last and XY tiling is valid for this plugin path.
 
 ---
 
+## Updated Findings and Fix (June 26, 2026)
+
+### Confirmed Model and Image Metadata
+
+For `260513_2025285_NMI-D_256_Uincep3_v1.czseg`:
+
+- ONNX input shape: `(None, 256, 256, 3)`
+- ONNX output shape: `(None, 256, 256, 5)`
+- Parsed model input shape: `[256, 256, 3]`
+- Parsed model output shape: `[256, 256, 5]`
+- Classes: `Nitrides`, `Sulfides`, `Oxides`, `Artefacts`, `Steel`
+- XML channel metadata: `<Item PixelType="Bgr24" />`
+- XML color handling: `<ColorHandling>SplitRgb</ColorHandling>`
+- XML scaling metadata: `<ScaleInputsByBitdepth>false</ScaleInputsByBitdepth>`
+- Border size: `50`, parsed as `min_overlap=[100, 100]`
+
+For `Image 12 small.czi` loaded by `napari-czitools`:
+
+- Returned layer type: `xarray.DataArray`
+- Dimensions: `('S', 'T', 'Z', 'Y', 'X', 'A')`
+- Shape: `(1, 1, 1, 4205, 5238, 3)`
+- Dtype: `uint8`
+- Value range observed: `0..216`
+
+### Primary Root Cause: Ignored Scaling Metadata
+
+The `.czseg` parser already reads `ScaleInputsByBitdepth` into `model_metadata.scaling`, but the widget ignored it:
+
+```python
+predict_ndarray(
+    ...,
+    do_rescale=True,
+)
+```
+
+For the UIncep3 model this is wrong because `ScaleInputsByBitdepth=false`. The model expects raw `uint8`-scale values, but napari-czann-segment divided the input by `255`.
+
+On a `256 x 256 x 3` crop:
+
+- `do_rescale=False`, RGB/BGR off: classes `1, 2, 4, 5`
+- `do_rescale=True`, RGB/BGR off: mostly classes `4, 5`
+- Difference between unscaled and scaled results: `58,135 / 65,536` pixels
+- RGB/BGR conversion changed results when `do_rescale=False`
+- RGB/BGR conversion had `0` pixel effect when `do_rescale=True`
+
+This explains why RGB/BGR testing initially appeared irrelevant: the model output had already collapsed because the intensity scale was wrong.
+
+### Secondary Bug: Plain `(Y, X, 3)` Arrays
+
+`predict_ndarray()` previously detected channel-last arrays only when `len(img.shape) > 3`. That worked for `napari-czitools` data shaped `(1, 1, 1, Y, X, 3)`, but failed for plain RGB/BGR arrays shaped `(Y, X, 3)`.
+
+For a crop shaped `(256, 256, 3)`, the wrapper treated `Y` as a stack axis and sent an invalid `(X, 3)` slice to `predict_tiles2d()`, causing:
+
+```text
+ValueError: Channel mismatch: tile has 1 channel(s), but model expects 3.
+```
+
+`predict_tiles2d()` itself handled `(Y, X, 3)` correctly. The bug was in the multidimensional wrapper.
+
+### Implemented Fix
+
+The fix has two parts:
+
+1. `predict_ndarray(..., do_rescale=None)` now uses model metadata:
+
+```python
+if do_rescale is None:
+    do_rescale = getattr(modelmd, "scaling", True)
+```
+
+2. The widget now passes the selected model's scaling metadata instead of forcing rescaling:
+
+```python
+do_rescale=getattr(self.model_metadata, "scaling", True)
+```
+
+3. Channel-last detection now happens after model metadata is loaded and checks the model's expected channel count, so both `(Y, X, 3)` and `(..., Y, X, 3)` are handled correctly.
+
+### Current Diagnosis
+
+For the real `napari-czitools` loading path, CZTILE is not the primary issue. The data arrives as `(..., Y, X, A)` with the sample/channel axis last, and tiles are extracted across XY only.
+
+The primary issue was preprocessing: the UIncep3 model's `ScaleInputsByBitdepth=false` metadata was ignored. After fixing scaling, RGB/BGR channel order should be evaluated separately because the model still declares `Bgr24`.
+
+---
+
+## Historical Investigation Notes (Superseded)
+
+The following sections document the original investigation path. They are retained for context, but the current diagnosis above supersedes the early RGB/BGR-only hypothesis.
+
 ## Key Differences Found
 
-### 1. **Color Channel Format (RGB vs. BGR)** ⚠️ CRITICAL - ROOT CAUSE
+### 1. **Color Channel Format (RGB vs. BGR)** ⚠️ Original Hypothesis, Not Primary Root Cause
 
 #### Model Metadata: Both Models Expect BGR24 Format
 
@@ -159,7 +255,7 @@ def _prep(t: np.ndarray) -> np.ndarray:
   - First convolutional layer uses color-specific filters
   - R and B channels swapped → Wrong features extracted
   - Downstream layers use corrupted features → Wrong segmentation
-- **Conclusion:** The issue is **color channel order (RGB vs. BGR)**, not batch processing
+- **Historical conclusion, superseded:** The issue appeared to be **color channel order (RGB vs. BGR)** rather than batch processing. Later testing showed incorrect intensity scaling was the primary cause.
 
 ## Root Cause Analysis
 
@@ -206,11 +302,11 @@ The UIncep3 model trained on **BGR** (standard for OpenCV, ZEISS imaging), but n
 - ✅ Conversion code: EXECUTING (logs confirm "RGB to BGR CONVERSION IS ENABLED")
 - ❌ **Conversion effect: NO IMPACT** (results identical whether ON or OFF)
 
-**Conclusion:** RGB/BGR channel order is **NOT** the root cause. The problem lies elsewhere.
+**Historical conclusion, refined:** RGB/BGR conversion alone did not change results in this test. Later testing showed this was because the input was incorrectly rescaled first; RGB/BGR may still matter after scaling is corrected.
 
-### Root Cause: STILL UNKNOWN
+### Root Cause: Identified Later as Scaling Metadata
 
-Since conversion doesn't help, the actual issue must be one of:
+At this point in the investigation the root cause was not yet known. The later finding was that `ScaleInputsByBitdepth=false` was ignored. The candidate list at this stage was:
 1. **CZI loading/parsing difference** - napari vs SegmentationService read differently
 2. **Preprocessing step missing** - SegmentationService does something napari doesn't
 3. **Model input layout** - possible NCHW vs NHWC mismatch
@@ -239,98 +335,83 @@ Since conversion doesn't help, the actual issue must be one of:
 
 ---
 
-## Solutions
+## Implemented Solution
 
-### Primary Fix (RECOMMENDED): Add RGB→BGR Conversion
+### Primary Fix: Honor `ScaleInputsByBitdepth`
 
-Since the ONNX models expect BGR24 format but napari provides RGB data, add color channel conversion in the `_prep()` function:
-
-**In `src/napari_czann_segment/predict.py`**, modify the `_prep()` helper function:
-
-**Before (current code - RGB channels, no conversion):**
-```python
-def _prep(t: np.ndarray) -> np.ndarray:
-    if isinstance(t, da.Array):
-        t = t.compute()
-    if do_rescale:
-        t = t.astype(np.float32) / np.iinfo(img2d.dtype).max
-    else:
-        t = t.astype(np.float32)
-    if t.ndim == 2:
-        t = t[..., np.newaxis]
-    if t.shape[-1] != input_channels:
-        raise ValueError(...)
-    return t
-```
-
-**After (fix - convert RGB to BGR):**
-```python
-def _prep(t: np.ndarray) -> np.ndarray:
-    if isinstance(t, da.Array):
-        t = t.compute()
-    if do_rescale:
-        t = t.astype(np.float32) / np.iinfo(img2d.dtype).max
-    else:
-        t = t.astype(np.float32)
-    if t.ndim == 2:
-        t = t[..., np.newaxis]
-    if t.shape[-1] != input_channels:
-        raise ValueError(...)
-    
-    # CRITICAL FIX: Convert RGB to BGR for models trained on BGR
-    # Both Test 1 and Test 2 models declare PixelType="Bgr24"
-    if t.shape[-1] == 3:  # Only for RGB images (3 channels)
-        t = t[..., ::-1]  # Reverse channels: RGB → BGR
-    
-    return t
-```
-
-**Why this works:**
-- ✅ Fixes Test 2 (UIncep3) - now receives correct BGR channel order
-- ✅ Test 1 (PGC) continues to work - channel reordering is harmless for models that expect BGR
-- ✅ Matches model metadata requirements (`PixelType="Bgr24"`)
-- ✅ Simple, efficient operation (no performance cost)
-- ✅ Aligns with ZEISS/OpenCV convention (BGR is standard)
-
-### Alternative Fix: Read Model Metadata and Apply Conditionally
-
-For maximum compatibility with future models that might expect RGB:
+The `.czseg` parser already exposes the scaling metadata as `model_metadata.scaling`. Prediction now uses that metadata by default:
 
 ```python
-# Read ColorHandling and PixelType from model metadata
-# If PixelType is Bgr24/Bgra32 and input is RGB → convert
-# Otherwise → keep as-is
+def predict_ndarray(..., do_rescale: Optional[bool] = None, ...):
+    ...
+    if do_rescale is None:
+        do_rescale = getattr(modelmd, "scaling", True)
 ```
 
-But for now, since both test models use BGR24, the unconditional conversion is the safest approach.
+The napari widget no longer forces scaling for semantic segmentation:
+
+```python
+modeldata, seg_complete = predict_ndarray(
+    self.czann_file,
+    img_layer.data,
+    border=self.min_overlap_ui,
+    use_gpu=self.use_gpu,
+    do_rescale=getattr(self.model_metadata, "scaling", True),
+    tiling_method=self.tiling_method,
+    merge_window=self.merge_method,
+    batch_size=self.batch_size,
+)
+```
+
+For `260513_2025285_NMI-D_256_Uincep3_v1.czseg`, this means `do_rescale=False`, matching the XML metadata.
+
+### Secondary Fix: Model-Aware Channel-Axis Detection
+
+The wrapper now loads model metadata before deciding whether the last axis is a channel/sample axis. It checks the model's expected input channel count:
+
+```python
+input_channels = modelmd.input_shape[-1]
+has_channel_dim = len(img.shape) >= 3 and img.shape[-1] == input_channels and (
+    input_channels > 1 or len(img.shape) == 3
+)
+```
+
+This preserves correct behavior for `napari-czitools` arrays shaped `(1, 1, 1, Y, X, 3)` and fixes plain RGB/BGR crops shaped `(Y, X, 3)`.
+
+### RGB/BGR Status
+
+RGB/BGR conversion is no longer considered the primary fix. The model still declares `PixelType="Bgr24"`, so channel order may still need explicit handling after intensity scaling is correct. The earlier test result where conversion had no effect was caused by the wrong intensity scale.
 
 ---
 
-## Code Comparison Table
+## Updated Code Comparison Table
 
 | Aspect                 | napari                  | SegmentationService                 | Impact on Test 2 |
 | ---------------------- | ----------------------- | ----------------------------------- | ---------------- |
-| **Color Channels**     | RGB (from image viewer) | BGR (or correctly formatted)        | ⚠️ **CRITICAL**   |
-| **Channel Conversion** | None                    | None (but input may already be BGR) | ⚠️ **CRITICAL**   |
+| **Input scaling**      | Previously forced `[0, max] -> [0, 1]`; now uses model metadata | Uses `ScaleInputsByBitdepth` metadata | ⚠️ **Primary issue** |
+| **Color Channels**     | `napari-czitools` returns sample axis last as `A=3` | Service path still needs comparison | ⚠️ Still possible after scaling |
+| **Channel Conversion** | Optional/debug path only | None in DNN path                    | ⚠️ Secondary |
 | **Batch Size**         | Dynamic (1 to N)        | Fixed (always 1)                    | ℹ️ Minor          |
-| **Normalization**      | `[0, max] → [0, 1]`     | `[0, max] → [0, 1]`                 | ✅ Identical      |
+| **Normalization**      | Now honors `model_metadata.scaling` | Uses model metadata                 | ✅ Aligned        |
 | **cuDNN Search**       | EXHAUSTIVE              | Default                             | ℹ️ Minor          |
 | **GPU Fallback**       | Yes                     | Yes                                 | ✅ Identical      |
 ---
 
-## Expected Test Results After Fix
+## Expected Test Results After Implemented Fix
 
-After implementing the cuDNN EXHAUSTIVE options in napari:
+After honoring `ScaleInputsByBitdepth` and fixing channel-axis detection:
 
 ```
 Test 1: PGC_20X_nucleus_detector.czseg
-- Before: ✅ Works (already robust)
-- After: ✅ Works (no regression)
+- Before: Works
+- After: Should continue to work because its scaling metadata is true
 
 Test 2: 260513_2025285_NMI-D_256_Uincep3_v1.czseg
-- Before: ❌ Artifacts / strange results
-- After: ✅ Should match SegmentationService results
+- Before: Wrong/artifact-prone because input was incorrectly rescaled
+- After: Should use raw uint8-scale input, matching ScaleInputsByBitdepth=false
 ```
+
+RGB/BGR channel order should be re-evaluated after this fix using correctly scaled input.
 
 ---
 

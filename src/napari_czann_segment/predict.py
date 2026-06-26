@@ -13,7 +13,7 @@ import numpy as np
 import tempfile
 import itertools
 import math
-from typing import Tuple, Union, Any, List
+from typing import Tuple, Union, Any, List, Optional
 import dask.array as da
 from .onnx_inference import OnnxInferencer
 from czmodel import ModelType, ModelMetadata
@@ -41,7 +41,7 @@ def predict_ndarray(
     img: Union[np.ndarray, da.Array, xr.DataArray],
     border: Union[str, int] = "auto",
     use_gpu: bool = False,
-    do_rescale: bool = True,
+    do_rescale: Optional[bool] = None,
     tiling_method: TileMethod = TileMethod.CZTILE,
     merge_window: SupportedWindow = SupportedWindow.none,
     batch_size: int = 8,
@@ -54,7 +54,8 @@ def predict_ndarray(
         img (Union[np.ndarray, da.Array]): multi-dimensional array
         border (Union[str, int], optional): parameter to adjust the bordersize. Defaults to "auto".
         use_gpu (bool, optional): use GPU for the prediction. Defaults to False
-        do_rescale (bool, optional): rescale the intensities [0-1]. Defaults to True.
+        do_rescale (bool, optional): rescale the intensities [0-1]. If None,
+            use the model metadata. Defaults to None.
         tiling_method (TileMethod, optional): specify the desired tiling method. Defaults to TileMethod.CZITILE
         merge_window (SupportedWindow, optional): Specifies which window function to use for Tiler only. Defaults to SupportedWindow.boxcar
         batch_size (int, optional): batch size for inference (higher values improve GPU utilization). Defaults to 8.
@@ -67,32 +68,6 @@ def predict_ndarray(
     # convert xarray to numpy array
     if isinstance(img, xr.DataArray):
         img = img.data
-
-    # Determine if input has an explicit channel dimension at the end
-    # Expected format: [..., Y, X, C] where C is the number of color channels (1, 3, 4, etc.)
-    # We iterate over all dimensions except the last 3: Y, X, C
-    has_channel_dim = len(img.shape) > 3 and img.shape[-1] <= 10
-
-    if has_channel_dim:
-        shape_woxy = img.shape[:-3]  # Remove Y, X, C dimensions
-        # Output shape is [..., Y, X] (no channel dimension in output - it's a label map)
-        output_shape = img.shape[:-1]  # Remove only the channel dimension
-    else:
-        shape_woxy = img.shape[:-2]  # Remove Y, X dimensions
-        # Output shape same as input for 2D images
-        output_shape = img.shape
-
-    # seg_complete will hold the 2D segmentation/regression output
-    seg_complete = np.zeros(output_shape, dtype=img.dtype)
-
-    # DEBUG: Log image information
-    logger.info(f"[predict_ndarray] Input image shape: {img.shape}, dtype: {img.dtype}")
-    logger.info(f"[predict_ndarray] Has channel dim: {has_channel_dim}, Output shape: {output_shape}")
-    logger.info(f"[predict_ndarray] convert_rgb_to_bgr parameter value: {convert_rgb_to_bgr}")
-
-    # create the "values" each for-loop iterates over
-    loopover = [range(s) for s in shape_woxy]
-    prod = itertools.product(*loopover)
 
     # extract the model information and path and to the prediction
     with tempfile.TemporaryDirectory() as temp_path:
@@ -108,6 +83,40 @@ def predict_ndarray(
             modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path))
         else:
             raise ValueError(f"Unsupported model file format: {file_extension}")
+
+        if do_rescale is None:
+            do_rescale = getattr(modelmd, "scaling", True)
+
+        input_channels = modelmd.input_shape[-1]
+
+        # Determine if input has an explicit channel dimension at the end.
+        # Expected format: [..., Y, X, C], where C matches the model input.
+        # This includes plain color images shaped (Y, X, 3).
+        has_channel_dim = len(img.shape) >= 3 and img.shape[-1] == input_channels and (
+            input_channels > 1 or len(img.shape) == 3
+        )
+
+        if has_channel_dim:
+            shape_woxy = img.shape[:-3]  # Remove Y, X, C dimensions
+            # Output shape is [..., Y, X] (no channel dimension in output - it's a label map)
+            output_shape = img.shape[:-1]  # Remove only the channel dimension
+        else:
+            shape_woxy = img.shape[:-2]  # Remove Y, X dimensions
+            # Output shape same as input for 2D images
+            output_shape = img.shape
+
+        # seg_complete will hold the 2D segmentation/regression output
+        seg_complete = np.zeros(output_shape, dtype=img.dtype)
+
+        # DEBUG: Log image information
+        logger.info(f"[predict_ndarray] Input image shape: {img.shape}, dtype: {img.dtype}")
+        logger.info(f"[predict_ndarray] Has channel dim: {has_channel_dim}, Output shape: {output_shape}")
+        logger.info(f"[predict_ndarray] do_rescale value: {do_rescale}")
+        logger.info(f"[predict_ndarray] convert_rgb_to_bgr parameter value: {convert_rgb_to_bgr}")
+
+        # create the "values" each for-loop iterates over
+        loopover = [range(s) for s in shape_woxy]
+        prod = itertools.product(*loopover)
 
         # get the used bordersize - is needed for the tiling
         if isinstance(border, str) and border == "auto":
