@@ -109,3 +109,5 @@ src/napari_czann_segment/experimental/**
 /src/napari_czann_segment/_data/PGC_20X_nucleus_detector.zip
 /src/napari_czann_segment/_data/Image 12 small.czi
 /docs
+/Problem Description.md
+/src/napari_czann_segment/_data/Image 12 small-seg.czi
