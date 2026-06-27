@@ -45,6 +45,11 @@ import warnings
 from .utils import setup_log
 
 
+def _resolve_do_rescale(value):
+    """Resolve missing model scaling metadata to the legacy default."""
+    return True if value is None else bool(value)
+
+
 class TableWidget(QWidget):
     """
     A custom widget that displays a table with parameter-value pairs.
@@ -436,7 +441,7 @@ class segment_with_czann(QWidget):
                 img_layer.data,
                 border=self.min_overlap_ui,
                 use_gpu=self.use_gpu,
-                do_rescale=getattr(self.model_metadata, "scaling", True),
+                do_rescale=_resolve_do_rescale(getattr(self.model_metadata, "scaling", None)),
                 tiling_method=self.tiling_method,
                 merge_window=self.merge_method,
                 batch_size=self.batch_size,

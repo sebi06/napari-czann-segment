@@ -86,3 +86,40 @@ def test_predict_ndarray_preserves_stacked_yxc_output_shape(monkeypatch):
         ((8, 9, 3), True),
         ((8, 9, 3), True),
     ]
+
+
+def test_predict_ndarray_treats_missing_scaling_metadata_as_rescale(monkeypatch):
+    model_md = SimpleNamespace(
+        input_shape=[4, 4, 1],
+        min_overlap=[1, 1],
+        scaling=None,
+    )
+    calls = []
+
+    def fake_extract(path, target_dir):
+        return model_md, target_dir / "model.onnx"
+
+    def fake_predict_tiles2d(
+        img2d,
+        model_md,
+        inferencer,
+        min_border_width,
+        do_rescale,
+        use_gpu,
+        tiling_method,
+        merge_window,
+        convert_rgb_to_bgr,
+    ):
+        calls.append((img2d.shape, do_rescale))
+        return np.zeros(img2d.shape, dtype=img2d.dtype)
+
+    monkeypatch.setattr(predict, "extract_czann_model", fake_extract)
+    monkeypatch.setattr(predict, "OnnxInferencer", DummyInferencer)
+    monkeypatch.setattr(predict, "predict_tiles2d", fake_predict_tiles2d)
+
+    img = np.zeros((8, 9), dtype=np.uint16)
+
+    _, seg = predict.predict_ndarray("model.czann", img)
+
+    assert seg.shape == (8, 9)
+    assert calls == [((8, 9), True)]

@@ -36,6 +36,11 @@ import xarray as xr
 logger = setup_log("Napari-CZANN-predict")
 
 
+def _resolve_do_rescale(value: Optional[bool]) -> bool:
+    """Resolve missing model scaling metadata to the legacy default."""
+    return True if value is None else bool(value)
+
+
 def predict_ndarray(
     czann_file: str,
     img: Union[np.ndarray, da.Array, xr.DataArray],
@@ -85,7 +90,7 @@ def predict_ndarray(
             raise ValueError(f"Unsupported model file format: {file_extension}")
 
         if do_rescale is None:
-            do_rescale = getattr(modelmd, "scaling", True)
+            do_rescale = _resolve_do_rescale(getattr(modelmd, "scaling", None))
 
         input_channels = modelmd.input_shape[-1]
 
