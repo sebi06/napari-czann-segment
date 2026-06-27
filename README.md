@@ -111,13 +111,13 @@ The GPU checkbox will be automatically disabled on macOS.
 
 ### GPU (optional - Windows/Linux with NVIDIA GPU)
 
-GPU acceleration uses [ONNX-GPU] and requires an **NVIDIA GPU** with the correct CUDA runtime libraries. These libraries **cannot be installed via pip** — they must come from conda or system CUDA installation.
+GPU acceleration uses [ONNX-GPU] and requires an **NVIDIA GPU** with the correct CUDA runtime libraries. For the ONNX Runtime versions targeted by this project, the `[gpu]` extra installs pinned pip `nvidia-*-cu12` runtime packages, using a CUDA 12.4 + cuDNN 9.1 stack that still works on older NVIDIA GPUs such as GTX 10xx / Pascal.
 
 **Why the conda environment file is recommended:**
 
-The conda environment file ([env_napari_czann_segment.yml](env_napari_czann_segment.yml)) already has the **correct versions of CUDA and cuDNN** tested and working with `onnxruntime-gpu`. You don't need to guess which versions to install:
+The conda environment file ([napari-env.yml](napari-env.yml)) already has the **correct versions of CUDA and cuDNN** tested and working with `onnxruntime-gpu`. You don't need to guess which versions to install:
 
-    conda env create --file env_napari_czann_segment.yml
+    conda env create --file napari-env.yml
 
 Then verify GPU support:
 
@@ -129,29 +129,29 @@ You should see `CUDAExecutionProvider` in the list.
 
 Different versions of `onnxruntime-gpu` require different CUDA/cuDNN versions. Check the [ONNX Runtime CUDA Provider documentation](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) for your version's requirements.
 
-For example, for `onnxruntime-gpu >= 1.21`, you need CUDA 12.x and cuDNN 9.x:
+For example, for `onnxruntime-gpu >= 1.21`, you need CUDA 12.x and cuDNN 9.x. The `[gpu]` extra pins tested runtime wheels:
 
-1. **Install CUDA runtime libraries via conda** (matching your `onnxruntime-gpu` version):
-
-       conda install nvidia::libcublas=12.4 nvidia::libcufft=12 nvidia::libcudart=12 nvidia::cudnn=9
-
-2. **If you previously installed with `[cpu]`, uninstall onnxruntime first**:
+1. **If you previously installed with `[cpu]`, uninstall onnxruntime first**:
 
        pip uninstall onnxruntime -y
 
-3. **Install the GPU extra**:
+2. **Install the GPU extra**:
 
        pip install napari-czann-segment[gpu]
 
-4. **Verify GPU support**:
+3. **Verify GPU support**:
 
        python -c "import onnxruntime; print(onnxruntime.get_available_providers())"
 
    You should see `CUDAExecutionProvider` in the list. If you only see `CPUExecutionProvider`, the CUDA libraries are missing or incompatible — check the [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) and reinstall.
 
-4. **(Alternative) Use a conda environment** with system CUDA libraries. See the example [conda environment YAML](env_napari_czann_segment.yml):
+4. **(Alternative) Use conda packages** if you prefer not to use pip-provided CUDA runtime wheels:
 
-       conda env create --file env_napari_czann_segment.yml
+       conda install nvidia::cuda-runtime nvidia::cudnn
+
+5. **Use the repo environment file** for a tested setup. See the example [conda environment YAML](napari-env.yml):
+
+       conda env create --file napari-env.yml
 
 **Note:** If you have PyTorch with CUDA installed, onnxruntime-gpu (>= 1.21) can automatically reuse PyTorch's CUDA/cuDNN DLLs via its `preload_dlls()` mechanism. The plugin calls this automatically at startup.
 
@@ -159,7 +159,12 @@ For example, for `onnxruntime-gpu >= 1.21`, you need CUDA 12.x and cuDNN 9.x:
 
 - **Only seeing `CPUExecutionProvider` after installing `[gpu]`**: You likely have both `onnxruntime` and `onnxruntime-gpu` installed (they conflict). **Solution**: Run `pip uninstall onnxruntime -y` to remove the CPU version, keeping only the GPU version.
 - **Switching from `[cpu]` to `[gpu]`**: First uninstall the CPU version: `pip uninstall onnxruntime -y`, then install with `pip install napari-czann-segment[gpu]`.
-- **`cublasLt64_12.dll` or `cufft64_11.dll` not found**: CUDA runtime libraries are missing. The easiest fix is ensuring you installed with `[gpu]` extra which includes them. Alternatively, install via conda: `conda install nvidia::libcublas=12.4 nvidia::libcufft=11.*`.
+- **`libcudnn.so.9`, `cublasLt64_12.dll`, or `cufft64_11.dll` not found**: CUDA runtime libraries are missing. The easiest fix is ensuring you installed with `[gpu]` extra, which includes them. Alternatively, install via conda: `conda install nvidia::cuda-runtime nvidia::cudnn`.
+- **`CUDNN_FE failure 11` with `no kernel image is available for execution on the device`**: The installed pip `nvidia-*-cu12` wheels are probably too new for your GPU generation. Reinstall the local package with the pinned `[gpu]` extra:
+
+       pip install --force-reinstall -e .[gpu]
+
+- **`Failed to allocate memory for requested buffer` during a Conv node**: The GPU ran out of memory during inference. Lower the batch size in the plugin UI; the plugin also retries GPU inference with smaller batches and falls back to CPU if one tile still cannot fit.
 - **Plugin shows "GPU support is not available"**: Check the napari log output for detailed diagnostics. The plugin always falls back to CPU safely.
 - **CUDA version mismatch**: `onnxruntime-gpu` requires specific CUDA versions. Check the [ONNX Runtime GPU requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements).
 
@@ -169,11 +174,11 @@ For example, for `onnxruntime-gpu >= 1.21`, you need CUDA 12.x and cuDNN 9.x:
 
 - **Ideally one creates a new [conda] environment or use an existing environment that already contains [Napari].**
 
-Feel free to create a new environment using the example [YAML](env_napari_czann_segment.yml) file at your own risk:
+Feel free to create a new environment using the example [YAML](napari-env.yml) file at your own risk:
 
     cd the-github-repo-with-YAML-file
-    conda env create --file env_napari_czann_segment.yml
-    conda activate napari_czann_segment
+    conda env create --file napari-env.yml
+    conda activate napari-env
 
 - **Install the plugin locally**
 

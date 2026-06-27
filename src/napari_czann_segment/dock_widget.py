@@ -169,7 +169,7 @@ class segment_with_czann(QWidget):
         self.model_metadata = None
         self.czann_file: str = "mymodel.czann"
         self.use_gpu: bool = True
-        self.batch_size: int = 32
+        self.batch_size: int = 4
         self.tiling_method = TileMethod.CZTILE
         self.merge_method = SupportedWindow.none
 
@@ -261,12 +261,12 @@ class segment_with_czann(QWidget):
         self.batch_size_slider = Slider(
             orientation="horizontal",
             label="Batch Size",
-            value=32,
+            value=4,
             min=1,
             max=256,
             step=1,
             readout=True,
-            tooltip="Tiles processed per GPU forward pass. 32–128 is a good range for 8 GB VRAM with 256×256 tiles; increase until you see OOM errors.",
+            tooltip="Tiles processed per GPU forward pass. Larger tiles or 4 GB GPUs often need 1-4; increase while GPU memory allows.",
             tracking=False,
         )
 

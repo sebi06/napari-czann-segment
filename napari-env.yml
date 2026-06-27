@@ -1,5 +1,5 @@
 # Run from the repository root:
-#   conda env create --file env_napari_czann_segment.yml
+#   conda env create --file napari-env.yml
 #
 # EXAMPLE conda environment for GPU-accelerated inference with napari-czann-segment.
 # This is NOT required for CPU-only usage.
@@ -11,8 +11,9 @@
 # - The NVIDIA driver must be installed on the host. Verify with: nvidia-smi
 # - Do not mix CUDA libraries from /usr/local/cuda, conda nvidia packages,
 #   and pip nvidia packages in the same environment.
-# - This file lets the onnxruntime-gpu[cuda12] pip extra install the matching
-#   CUDA 12 + cuDNN 9 runtime libraries expected by ONNX Runtime.
+# - The [gpu] extra pins pip CUDA runtime wheels to a CUDA 12.4 + cuDNN 9.1
+#   stack. Newer CUDA 12.9/cuDNN 9.23 wheels can fail on older NVIDIA GPUs
+#   such as GTX 10xx / Pascal with "no kernel image is available".
 # - On Linux, avoid exporting /usr/local/cuda/lib64 ahead of this environment.
 #   If needed, launch with: LD_LIBRARY_PATH="$CONDA_PREFIX/lib" napari
 # - On Windows, no LD_LIBRARY_PATH is needed. The plugin/ONNX Runtime preloads

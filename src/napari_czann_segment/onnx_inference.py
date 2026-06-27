@@ -20,6 +20,12 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 _CUDA_SESSION_USABLE_CACHE: Dict[str, bool] = {}
+_CUDA_PROVIDER_OPTIONS = {
+    "cudnn_conv_algo_search": "HEURISTIC",
+    # Keep workspace bounded for 4 GB GPUs; larger workspaces can OOM on
+    # EfficientNet-like convolution blocks even when the input tile is small.
+    "cudnn_conv_use_max_workspace": "0",
+}
 
 # Ensure conda environment CUDA libraries are on the DLL search path (Windows).
 # Conda may place CUDA DLLs in <env>/bin or <env>/Library/bin which are not
@@ -160,8 +166,8 @@ providers = [
     (
         "CUDAExecutionProvider",
         {
-            "cudnn_conv_algo_search": "EXHAUSTIVE",
-            "cudnn_conv_use_max_workspace": "1",
+            "cudnn_conv_algo_search": "HEURISTIC",
+            "cudnn_conv_use_max_workspace": "0",
         },
     ),
     "CPUExecutionProvider",
@@ -333,7 +339,7 @@ class OnnxInferencer:
             The prediction for the given input _data.
         """
 
-        def _predict_batch(_x: List[np.ndarray], use_gpu: bool = True) -> List[np.ndarray]:
+        def _predict_batch(_x: List[np.ndarray], use_gpu: bool = True, batch_size: int = 1) -> List[np.ndarray]:
             """Run prediction on a batch of images.
 
             Processes images in batches to improve GPU utilization and reduce
@@ -342,29 +348,22 @@ class OnnxInferencer:
             Arguments:
                 _x: The batch of images to be predicted.
                 use_gpu: Allow execution on GPU (True) or enforce CPU execution (False).
+                batch_size: Number of images per ONNX forward pass.
 
             Returns:
                  The predictions for the given batch of images.
             """
 
-            # cuDNN provider options:
-            # - "cudnn_conv_algo_search": "EXHAUSTIVE" benchmarks all available
-            #   convolution algorithms and picks the fastest one. The default
-            #   ("DEFAULT") may fall back to a slower, non-cuDNN code path and
-            #   emit warnings like "Fallback to non-cudnn non-fused conv2d".
-            # - "cudnn_conv_use_max_workspace": "1" allows cuDNN to allocate as
-            #   much GPU workspace as needed, which prevents the algorithm search
-            #   from silently discarding faster kernels that require more memory.
+            # Use cuDNN's heuristic algorithm selection. It avoids many slow
+            # fallback Conv paths without the startup and memory cost of the
+            # exhaustive benchmark search.
             with ManagedOnnxSession(
                 self._model_path,
                 providers=(
                     [  # "TensorrtExecutionProvider",
                         (
                             "CUDAExecutionProvider",
-                            {
-                                "cudnn_conv_algo_search": "EXHAUSTIVE",
-                                "cudnn_conv_use_max_workspace": "1",
-                            },
+                            _CUDA_PROVIDER_OPTIONS,
                         ),
                         "CPUExecutionProvider",
                     ]
@@ -381,8 +380,8 @@ class OnnxInferencer:
                 # receive a tensor with N > 1 on the batch axis.  When the batch
                 # dimension is an integer we must process one image at a time.
                 model_batch_dim = sess.get_inputs()[0].shape[0]
-                effective_batch = 1 if isinstance(model_batch_dim, int) else self._batch_size
-                if effective_batch == 1 and self._batch_size > 1:
+                effective_batch = 1 if isinstance(model_batch_dim, int) else max(1, batch_size)
+                if effective_batch == 1 and batch_size > 1:
                     logger.debug(
                         "Model has fixed batch size (%s); falling back to " "single-image inference.",
                         model_batch_dim,
@@ -410,7 +409,31 @@ class OnnxInferencer:
         if use_gpu and not _is_cuda_session_usable(self._model_path):
             use_gpu = False
 
-        return _predict_batch(x, use_gpu=use_gpu)
+        if not use_gpu:
+            return _predict_batch(x, use_gpu=False, batch_size=self._batch_size)
+
+        gpu_batch_size = max(1, self._batch_size)
+        while gpu_batch_size >= 1:
+            try:
+                return _predict_batch(x, use_gpu=True, batch_size=gpu_batch_size)
+            except Exception as e:
+                if gpu_batch_size == 1:
+                    logger.warning(
+                        "GPU inference failed even with batch size 1: %s. "
+                        "Falling back to CPUExecutionProvider for this prediction.",
+                        e,
+                    )
+                    return _predict_batch(x, use_gpu=False, batch_size=1)
+
+                next_batch_size = max(1, gpu_batch_size // 2)
+                logger.warning(
+                    "GPU inference failed with batch size %s: %s. "
+                    "Retrying with batch size %s.",
+                    gpu_batch_size,
+                    e,
+                    next_batch_size,
+                )
+                gpu_batch_size = next_batch_size
 
     def get_input_shape(self) -> Tuple[int, int, int, int]:
         """Determines the input shape expected by the loaded model.
