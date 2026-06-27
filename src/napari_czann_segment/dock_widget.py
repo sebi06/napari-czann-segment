@@ -170,6 +170,7 @@ class segment_with_czann(QWidget):
         self.czann_file: str = "mymodel.czann"
         self.use_gpu: bool = True
         self.batch_size: int = 4
+        self.random_object_colors: bool = True
         self.tiling_method = TileMethod.CZTILE
         self.merge_method = SupportedWindow.none
 
@@ -273,6 +274,15 @@ class segment_with_czann(QWidget):
         self.layout().addWidget(self.batch_size_label)
         self.layout().addWidget(self.batch_size_slider.native)
         self.batch_size_slider.changed.connect(self._batch_size_changed)
+
+        self.random_object_colors_checkbox = CheckBox(
+            name="Random object colors",
+            visible=True,
+            enabled=True,
+            value=self.random_object_colors,
+        )
+        self.random_object_colors_checkbox.clicked.connect(self._random_object_colors_changed)
+        self.layout().addWidget(self.random_object_colors_checkbox.native)
 
         # check GPU availability and disable checkbox if not usable
         self._gpu_available = is_gpu_available()
@@ -433,6 +443,7 @@ class segment_with_czann(QWidget):
         self.logger.info("Minimum Tile Overlap: " + str(self.min_overlap_ui))
         self.logger.info("Use GPU acceleration: " + str(self.use_gpu))
         self.logger.info("Batch Size: " + str(self.batch_size))
+        self.logger.info("Random object colors: " + str(self.random_object_colors))
 
         if self.model_metadata.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
@@ -459,8 +470,10 @@ class segment_with_czann(QWidget):
                 # get the pixels for which the value is equal to current class value
                 self.logger.info("Class Name: " + modeldata.classes[c] + " Prediction Pixel Value: " + str(c))
 
-                # get all pixels with a specific value as boolean array, convert to numpy array and label
-                labels_current_class = label_nd(seg_complete, labelvalue=label_values[c])
+                if self.random_object_colors:
+                    labels_current_class = label_nd(seg_complete, labelvalue=label_values[c])
+                else:
+                    labels_current_class = (seg_complete == label_values[c]).astype(np.uint8)
 
                 # add new image layer
                 self.viewer.add_labels(
@@ -577,6 +590,11 @@ class segment_with_czann(QWidget):
         """
         self.batch_size = self.batch_size_slider.value
         self.logger.info(f"Batch Size: {self.batch_size}")
+
+    def _random_object_colors_changed(self):
+        """Update whether connected objects are labelled independently."""
+        self.random_object_colors = self.random_object_colors_checkbox.value
+        self.logger.info(f"Random object colors: {self.random_object_colors}")
 
     def _tiling_method_changed(self):
         """
