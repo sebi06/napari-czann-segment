@@ -87,8 +87,8 @@ def test_inference_with_directions():
     """Test inference with both conversion directions"""
     logger.info("\n=== TESTING INFERENCE WITH DIFFERENT CONVERSION DIRECTIONS ===")
 
-    from src.napari_czann_segment.predict import predict_ndarray
-    from src.napari_czann_segment.get_testdata import get_modelfile
+    from napari_czann_segment.predict import predict_ndarray
+    from napari_czann_segment.get_testdata import get_modelfile
 
     img_array = load_test_image()
     if img_array is None:

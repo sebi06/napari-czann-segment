@@ -13,8 +13,8 @@ import logging
 logging.basicConfig(level=logging.DEBUG, format="%(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-from src.napari_czann_segment.get_testdata import get_imagefile, get_modelfile
-from src.napari_czann_segment.predict import predict_ndarray
+from napari_czann_segment.get_testdata import get_imagefile, get_modelfile
+from napari_czann_segment.predict import predict_ndarray
 
 
 def test_color_conversion():
