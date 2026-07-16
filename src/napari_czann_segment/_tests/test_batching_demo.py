@@ -43,8 +43,7 @@ def test_batching():
         # Create 8 random test images (to test batching: 8 = 2 batches of 4)
         num_images = 8
         test_images = [
-            np.random.rand(input_shape[1], input_shape[2], input_shape[3]).astype(np.float32)
-            for _ in range(num_images)
+            np.random.rand(input_shape[1], input_shape[2], input_shape[3]).astype(np.float32) for _ in range(num_images)
         ]
         print(f"✓ Created {num_images} test images")
 
