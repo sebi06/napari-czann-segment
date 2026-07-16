@@ -17,11 +17,17 @@ This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookie
 
 Before installing, please setup a conda environment. If you have never worked with conda environments, go through [this tutorial](https://biapol.github.io/blog/johannes_mueller/anaconda_getting_started/) first.
 
-You can then install `napari-czann-segment` via [pip]:
+You can then install `napari-czann-segment` via [pip]. **You must choose either CPU or GPU support**:
 
-    pip install napari-czann-segment
+**For CPU inference** (works on all platforms):
 
-This installs CPU inference support and works on **Windows, Linux, and macOS** (including Apple Silicon). For GPU acceleration on Windows/Linux with an NVIDIA GPU, see [CPU vs. GPU Inference](#cpu-vs-gpu-inference).
+    pip install napari-czann-segment[cpu]
+
+**For GPU inference** (Windows/Linux with NVIDIA GPU only):
+
+    pip install napari-czann-segment[gpu]
+
+See [CPU vs. GPU Inference](#cpu-vs-gpu-inference) for detailed GPU setup instructions.
 
 ## What does the plugin do
 
@@ -89,9 +95,9 @@ Another example is shown below demonstrating a simple "Grain Size Analysis" usin
 
 ### CPU (default - works everywhere)
 
-By default, the plugin uses **CPU inference** via [ONNX-CPU]. This works on **all platforms** (Windows, Linux, macOS including Apple Silicon) without additional setup:
+CPU inference via [ONNX-CPU] works on **all platforms** (Windows, Linux, macOS including Apple Silicon):
 
-    pip install napari-czann-segment
+    pip install napari-czann-segment[cpu]
 
 When the plugin starts, it checks GPU availability and logs the result. If no GPU is detected, the "Use GPU" checkbox is automatically disabled and all inference runs on CPU.
 
@@ -99,37 +105,82 @@ When the plugin starts, it checks GPU availability and logs the result. If no GP
 
 On macOS (both Intel and Apple Silicon), the plugin works with **CPU inference only**. NVIDIA CUDA is not available on macOS, so the `[gpu]` extra should **not** be installed — `onnxruntime-gpu` does not publish macOS wheels and installation will fail. Simply use:
 
-    pip install napari-czann-segment
+    pip install napari-czann-segment[cpu]
 
 The GPU checkbox will be automatically disabled on macOS.
 
 ### GPU (optional - Windows/Linux with NVIDIA GPU)
 
-GPU acceleration uses [ONNX-GPU] and requires an **NVIDIA GPU** with the correct CUDA libraries. To enable it:
+GPU acceleration uses [ONNX-GPU] and requires an **NVIDIA GPU** with the correct CUDA runtime libraries. For the ONNX Runtime versions targeted by this project, the `[gpu]` extra installs pinned pip `nvidia-*-cu12` runtime packages, using a CUDA 12.4 + cuDNN 9.1 stack that still works on older NVIDIA GPUs such as GTX 10xx / Pascal.
 
-1. **Install the GPU extra** (recommended - includes CUDA and cuDNN pip packages):
+**Why the conda environment file is recommended:**
+
+The conda environment file ([napari-env.yml](napari-env.yml)) already has the **correct versions of CUDA and cuDNN** tested and working with `onnxruntime-gpu`. You don't need to guess which versions to install:
+
+    conda env create --file napari-env.yml
+
+Then verify GPU support:
+
+    python -c "import onnxruntime; print(onnxruntime.get_available_providers())"
+
+You should see `CUDAExecutionProvider` in the list.
+
+**If you must install manually:**
+
+Different versions of `onnxruntime-gpu` require different CUDA/cuDNN versions. Check the [ONNX Runtime CUDA Provider documentation](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) for your version's requirements.
+
+For example, for `onnxruntime-gpu >= 1.21`, you need CUDA 12.x and cuDNN 9.x. The `[gpu]` extra pins tested runtime wheels:
+
+1. **If you previously installed with `[cpu]`, uninstall onnxruntime first**:
+
+       pip uninstall onnxruntime -y
+
+2. **Install the GPU extra**:
 
        pip install napari-czann-segment[gpu]
 
-   This installs `onnxruntime-gpu` along with the required CUDA 12.x and cuDNN 9.x libraries as pip packages, so **no separate CUDA toolkit installation is needed** in most cases.
-
-2. **Verify GPU support** after installation:
+3. **Verify GPU support**:
 
        python -c "import onnxruntime; print(onnxruntime.get_available_providers())"
 
-   You should see `CUDAExecutionProvider` in the list.
+   You should see `CUDAExecutionProvider` in the list. If you only see `CPUExecutionProvider`, the CUDA libraries are missing or incompatible — check the [requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements) and reinstall.
 
-3. **(Alternative) Use a conda environment** with system CUDA libraries. See the example [conda environment YAML](env_napari_czann_segment.yml):
+4. **(Alternative) Use conda packages** if you prefer not to use pip-provided CUDA runtime wheels:
 
-       conda env create --file env_napari_czann_segment.yml
+       conda install nvidia::cuda-runtime nvidia::cudnn
+
+5. **Use the repo environment file** for a tested setup. See the example [conda environment YAML](napari-env.yml):
+
+       conda env create --file napari-env.yml
 
 **Note:** If you have PyTorch with CUDA installed, onnxruntime-gpu (>= 1.21) can automatically reuse PyTorch's CUDA/cuDNN DLLs via its `preload_dlls()` mechanism. The plugin calls this automatically at startup.
 
+### CUDA preflight check
+
+Before running GPU inference, the plugin performs a one-time **CUDA preflight** per model: it creates a CUDA ONNX session and runs a single dummy inference in a **separate subprocess**. This is intentional — some CUDA/cuDNN/cuBLAS mismatches abort the process from native code (an error Python cannot catch), so running the probe out-of-process lets napari fall back to CPU safely instead of crashing. The result is cached per model for the session.
+
+The **first** CUDA session on a machine can be slow to initialize (cuDNN/cuBLAS DLL loading, kernel JIT compilation, driver warm-up). If the preflight does not finish within its timeout, the plugin logs a warning and falls back to CPU for that session. If your GPU is healthy but simply slow to warm up, increase the timeout via an environment variable **before launching napari**:
+
+    # Windows (PowerShell) - timeout in seconds
+    $env:NAPARI_CZANN_CUDA_PREFLIGHT_TIMEOUT = "300"
+
+    # Linux / macOS
+    export NAPARI_CZANN_CUDA_PREFLIGHT_TIMEOUT=300
+
+The default is **180 seconds**.
+
 ### Troubleshooting GPU
 
-- **`cublasLt64_12.dll` or `cufft64_11.dll` not found**: CUDA runtime libraries are missing. The easiest fix is `pip install onnxruntime-gpu[cuda,cudnn]` which installs them as pip packages. Alternatively, install via conda: `conda install nvidia::libcublas=12.4 nvidia::libcufft=11.*`.
-- **`onnxruntime-gpu` and `onnxruntime` conflict**: These packages cannot coexist. If you see only `CPUExecutionProvider` despite having `onnxruntime-gpu` installed, run `pip uninstall onnxruntime onnxruntime-gpu` and then `pip install onnxruntime-gpu[cuda,cudnn]`.
+- **Only seeing `CPUExecutionProvider` after installing `[gpu]`**: You likely have both `onnxruntime` and `onnxruntime-gpu` installed (they conflict). **Solution**: Run `pip uninstall onnxruntime -y` to remove the CPU version, keeping only the GPU version.
+- **Switching from `[cpu]` to `[gpu]`**: First uninstall the CPU version: `pip uninstall onnxruntime -y`, then install with `pip install napari-czann-segment[gpu]`.
+- **`libcudnn.so.9`, `cublasLt64_12.dll`, or `cufft64_11.dll` not found**: CUDA runtime libraries are missing. The easiest fix is ensuring you installed with `[gpu]` extra, which includes them. Alternatively, install via conda: `conda install nvidia::cuda-runtime nvidia::cudnn`.
+- **`CUDNN_FE failure 11` with `no kernel image is available for execution on the device`**: The installed pip `nvidia-*-cu12` wheels are probably too new for your GPU generation. Reinstall the local package with the pinned `[gpu]` extra:
+
+       pip install --force-reinstall -e .[gpu]
+
+- **`Failed to allocate memory for requested buffer` during a Conv node**: The GPU ran out of memory during inference. Lower the batch size in the plugin UI; the plugin also retries GPU inference with smaller batches and falls back to CPU if one tile still cannot fit.
 - **Plugin shows "GPU support is not available"**: Check the napari log output for detailed diagnostics. The plugin always falls back to CPU safely.
+- **`CUDA preflight ... timed out` warning / GPU falls back to CPU**: The one-time CUDA warm-up exceeded the preflight timeout (default 180 s). If your GPU is healthy, raise it by setting `NAPARI_CZANN_CUDA_PREFLIGHT_TIMEOUT` (seconds) before launching napari — see [CUDA preflight check](#cuda-preflight-check).
 - **CUDA version mismatch**: `onnxruntime-gpu` requires specific CUDA versions. Check the [ONNX Runtime GPU requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements).
 
 ## For developers
@@ -138,11 +189,11 @@ GPU acceleration uses [ONNX-GPU] and requires an **NVIDIA GPU** with the correct
 
 - **Ideally one creates a new [conda] environment or use an existing environment that already contains [Napari].**
 
-Feel free to create a new environment using the example [YAML](env_napari_czann_segment.yml) file at your own risk:
+Feel free to create a new environment using the example [YAML](napari-env.yml) file at your own risk:
 
     cd the-github-repo-with-YAML-file
-    conda env create --file env_napari_czann_segment.yml
-    conda activate napari_czann_segment
+    conda env create --file napari-env.yml
+    conda activate napari-env
 
 - **Install the plugin locally**
 
@@ -153,6 +204,18 @@ Please run the following command:
 To install latest development version:
 
     pip install git+https://github.com/sebi06/napari_czann_segment.git
+
+### Running tests
+
+Run the automated test suite with:
+
+    pytest
+
+The `_tests/` directory also contains **manual diagnostic scripts** (`test_color_conversion.py`, `diagnostic_color_test.py`, `debug_tiling.py`) that perform full end-to-end inference on real CZI files and take several minutes. These are automatically **skipped** by `pytest`. To run them manually:
+
+    python src/napari_czann_segment/_tests/test_color_conversion.py
+    python src/napari_czann_segment/_tests/diagnostic_color_test.py
+    python src/napari_czann_segment/_tests/debug_tiling.py
 
 ## Contributing
 

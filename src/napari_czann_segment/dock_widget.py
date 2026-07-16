@@ -14,6 +14,7 @@
 import numpy as np
 import napari
 from napari.layers import Image
+from napari.utils.colormaps import DirectLabelColormap
 from napari_czann_segment.process_nd import label_nd
 from napari_czann_segment.predict import predict_ndarray
 from napari_czann_segment.utils import TileMethod, SupportedWindow
@@ -24,6 +25,7 @@ from pathlib import Path
 # from czmodel.pytorch.convert import DefaultConverter
 from czmodel.core.util._extract_model import extract_czann_model
 from czmodel import ModelType
+from napari_czann_segment.czseg_parser import extract_czseg_model
 from typing import Dict
 from qtpy.QtWidgets import (
     QComboBox,
@@ -42,6 +44,11 @@ from magicgui.widgets import FileEdit, Slider, CheckBox, PushButton, ComboBox
 from magicgui.types import FileDialogMode
 import warnings
 from .utils import setup_log
+
+
+def _resolve_do_rescale(value):
+    """Resolve missing model scaling metadata to the legacy default."""
+    return True if value is None else bool(value)
 
 
 class TableWidget(QWidget):
@@ -163,8 +170,15 @@ class segment_with_czann(QWidget):
         self.model_metadata = None
         self.czann_file: str = "mymodel.czann"
         self.use_gpu: bool = True
+        self.batch_size: int = 4
+        self.random_object_colors: bool = True
         self.tiling_method = TileMethod.CZTILE
         self.merge_method = SupportedWindow.none
+
+        # BGR/color-handling state resolved from the model metadata
+        self._model_expects_bgr: bool = False
+        # Per-class RGB colors (0-255) from the CZSEG XML; None for non-CZSEG models
+        self._class_colors = None
 
         # create a layout
         self.setLayout(QVBoxLayout())
@@ -173,7 +187,12 @@ class segment_with_czann(QWidget):
         self.layout().addWidget(QLabel("Model File Selection"))
 
         # define filter based on file extension
-        model_extension = "*.czann"
+        model_extension = (
+            "ZEISS model files (*.czann *.czseg);;"
+            "CZANN files (*.czann);;"
+            "CZSEG files (*.czseg);;"
+            "All files (*.*)"
+        )
 
         # create the FileEdit widget and add to the layout and connect it
         self.filename_edit = FileEdit(mode=FileDialogMode.EXISTING_FILE, value="", filter=model_extension)
@@ -244,10 +263,41 @@ class segment_with_czann(QWidget):
         self.use_gpu_checkbox.clicked.connect(self._use_gpu_changed)
         self.layout().addWidget(self.use_gpu_checkbox.native)
 
+        # add batch size slider for GPU inference optimization
+        self.batch_size_label = QLabel("Batch Size (GPU Optimization)")
+        self.batch_size_slider = Slider(
+            orientation="horizontal",
+            label="Batch Size",
+            value=4,
+            min=1,
+            max=256,
+            step=1,
+            readout=True,
+            tooltip="Tiles processed per GPU forward pass. Larger tiles or 4 GB GPUs often need 1-4; increase while GPU memory allows.",
+            tracking=False,
+        )
+
+        self.layout().addWidget(self.batch_size_label)
+        self.layout().addWidget(self.batch_size_slider.native)
+        self.batch_size_slider.changed.connect(self._batch_size_changed)
+
+        self.random_object_colors_checkbox = CheckBox(
+            name="Random object colors",
+            visible=True,
+            enabled=True,
+            value=self.random_object_colors,
+        )
+        self.random_object_colors_checkbox.clicked.connect(self._random_object_colors_changed)
+        self.layout().addWidget(self.random_object_colors_checkbox.native)
+
         # check GPU availability and disable checkbox if not usable
         self._gpu_available = is_gpu_available()
         if self._gpu_available:
-            self.logger.info("GPU support is available. CUDA will be used for inference when the checkbox is enabled.")
+            self.logger.info(
+                "CUDAExecutionProvider is listed by ONNX Runtime. "
+                "A model-specific CUDA preflight will run before inference; "
+                "CPU will be used automatically if CUDA cannot execute the model."
+            )
         else:
             self.use_gpu = False
             self.use_gpu_checkbox.value = False
@@ -314,8 +364,8 @@ class segment_with_czann(QWidget):
         """Get model metadata and store them
 
         This method extracts the model information and path from the czann_file,
-        unpacks the model using DefaultConverter, and stores the model metadata
-        and dictionary representation of the metadata.
+        unpacks the model using the appropriate parser (CZANN or CZSEG), and stores
+        the model metadata and dictionary representation of the metadata.
 
         It also updates the model metadata table, sets the min_overlap_ui and min_overlap_slider values,
         enables/disables certain buttons and sliders based on the tiling_method,
@@ -326,7 +376,25 @@ class segment_with_czann(QWidget):
         # extract the model information and path
         with tempfile.TemporaryDirectory() as temp_path:
 
-            self.model_metadata, self.model_path = extract_czann_model(path=self.czann_file, target_dir=Path(temp_path))
+            # Determine file type and use appropriate parser
+            file_extension = Path(self.czann_file).suffix.lower()
+
+            if file_extension == ".czseg":
+                self.logger.info("Detected CZSEG file format")
+                self.model_metadata, self.model_path, self._model_expects_bgr, self._class_colors = extract_czseg_model(
+                    path=self.czann_file, target_dir=Path(temp_path)
+                )
+            elif file_extension in [".czann", ".czmodel"]:
+                self.logger.info(f"Detected {file_extension.upper()} file format")
+                self.model_metadata, self.model_path = extract_czann_model(
+                    path=self.czann_file, target_dir=Path(temp_path)
+                )
+                self._model_expects_bgr = False
+                self._class_colors = None
+            else:
+                self.logger.error(f"Unsupported file format: {file_extension}")
+                warnings.warn(f"Unsupported model file format: {file_extension}")
+                return
 
         # get model metadata as dictionary
         self.model_metadata_dict = self.model_metadata._asdict()
@@ -382,6 +450,8 @@ class segment_with_czann(QWidget):
         self.logger.info("CZANN ModelType: " + str(self.model_metadata.model_type))
         self.logger.info("Minimum Tile Overlap: " + str(self.min_overlap_ui))
         self.logger.info("Use GPU acceleration: " + str(self.use_gpu))
+        self.logger.info("Batch Size: " + str(self.batch_size))
+        self.logger.info("Random object colors: " + str(self.random_object_colors))
 
         if self.model_metadata.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
@@ -390,9 +460,10 @@ class segment_with_czann(QWidget):
                 img_layer.data,
                 border=self.min_overlap_ui,
                 use_gpu=self.use_gpu,
-                do_rescale=True,
+                do_rescale=_resolve_do_rescale(getattr(self.model_metadata, "scaling", None)),
                 tiling_method=self.tiling_method,
                 merge_window=self.merge_method,
+                batch_size=self.batch_size,
             )
 
             self.logger.info(f"Input Data Shape: {img_layer.data.shape}")
@@ -407,17 +478,37 @@ class segment_with_czann(QWidget):
                 # get the pixels for which the value is equal to current class value
                 self.logger.info("Class Name: " + modeldata.classes[c] + " Prediction Pixel Value: " + str(c))
 
-                # get all pixels with a specific value as boolean array, convert to numpy array and label
-                labels_current_class = label_nd(seg_complete, labelvalue=label_values[c])
+                if self.random_object_colors:
+                    labels_current_class = label_nd(seg_complete, labelvalue=label_values[c])
+                else:
+                    labels_current_class = (seg_complete == label_values[c]).astype(np.uint8)
+
+                # For CZSEG models the XML defines a color per class. When not using
+                # random object colors, color the class layer with its defined color.
+                # In random-object-colors mode the per-object random colors are kept.
+                class_colormap = None
+                if not self.random_object_colors and self._class_colors is not None and c < len(self._class_colors):
+                    r, g, b = self._class_colors[c]
+                    class_colormap = DirectLabelColormap(
+                        color_dict={
+                            None: (0.0, 0.0, 0.0, 0.0),
+                            1: (r / 255.0, g / 255.0, b / 255.0, 1.0),
+                        }
+                    )
 
                 # add new image layer
-                self.viewer.add_labels(
-                    labels_current_class,
+                add_labels_kwargs = dict(
                     name=f"{img_layer.name}_" + modeldata.classes[c],
-                    # num_colors=256,
                     scale=img_layer.scale,
                     opacity=0.7,
                     blending="translucent",
+                )
+                if class_colormap is not None:
+                    add_labels_kwargs["colormap"] = class_colormap
+
+                self.viewer.add_labels(
+                    labels_current_class,
+                    **add_labels_kwargs,
                 )
 
         if self.model_metadata.model_type == ModelType.REGRESSION:
@@ -429,6 +520,7 @@ class segment_with_czann(QWidget):
                 use_gpu=self.use_gpu,
                 do_rescale=False,
                 merge_window=self.merge_method,
+                batch_size=self.batch_size,
             )
 
             self.logger.info(f"Input Data Shape: {img_layer.data.shape}")
@@ -515,6 +607,20 @@ class segment_with_czann(QWidget):
         if not self.use_gpu_checkbox.value:
             self.use_gpu = False
             self.logger.info("Use CPU for inference.")
+
+    def _batch_size_changed(self):
+        """
+        Callback method triggered when the batch size slider value changes.
+        Updates the batch_size attribute and logs the new batch size.
+        Higher values improve GPU utilization but require more VRAM.
+        """
+        self.batch_size = self.batch_size_slider.value
+        self.logger.info(f"Batch Size: {self.batch_size}")
+
+    def _random_object_colors_changed(self):
+        """Update whether connected objects are labelled independently."""
+        self.random_object_colors = self.random_object_colors_checkbox.value
+        self.logger.info(f"Random object colors: {self.random_object_colors}")
 
     def _tiling_method_changed(self):
         """
