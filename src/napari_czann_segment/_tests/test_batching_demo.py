@@ -7,15 +7,20 @@ from pathlib import Path
 
 import numpy as np
 from czmodel.core.util._extract_model import extract_czann_model
+import pytest
 
 # Add src to path
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
 from napari_czann_segment.get_testdata import get_modelfile
-from napari_czann_segment.onnx_inference import OnnxInferencer
+from napari_czann_segment.onnx_inference import OnnxInferencer, ONNXRUNTIME_AVAILABLE
 
 
+@pytest.mark.skipif(
+    not ONNXRUNTIME_AVAILABLE,
+    reason="onnxruntime not available (e.g. Windows CI access violation)",
+)
 def test_batching():
     """Test that batching is working correctly."""
 
