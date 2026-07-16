@@ -89,7 +89,7 @@ def predict_ndarray(
 
         if file_extension == ".czseg":
             logger.info("Detected CZSEG file format")
-            modelmd, model_path, model_expects_bgr = extract_czseg_model(path=czann_file, target_dir=Path(temp_path))
+            modelmd, model_path, model_expects_bgr, _ = extract_czseg_model(path=czann_file, target_dir=Path(temp_path))
         elif file_extension in [".czann", ".czmodel"]:
             logger.info(f"Detected {file_extension.upper()} file format")
             modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path))

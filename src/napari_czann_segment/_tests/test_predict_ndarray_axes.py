@@ -20,7 +20,7 @@ def test_predict_ndarray_uses_model_scaling_and_keeps_yxc(monkeypatch):
     calls = []
 
     def fake_extract(path, target_dir):
-        return model_md, target_dir / "model.onnx", False
+        return model_md, target_dir / "model.onnx", False, []
 
     def fake_predict_tiles2d(
         img2d,
@@ -57,7 +57,7 @@ def test_predict_ndarray_preserves_stacked_yxc_output_shape(monkeypatch):
     calls = []
 
     def fake_extract(path, target_dir):
-        return model_md, target_dir / "model.onnx", False
+        return model_md, target_dir / "model.onnx", False, []
 
     def fake_predict_tiles2d(
         img2d,

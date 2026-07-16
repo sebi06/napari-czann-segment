@@ -137,12 +137,19 @@ def parse_czseg_xml(xml_path: Path, model_path: Optional[Path] = None) -> dict:
 
     # Extract classes from TrainingClasses
     classes = []
+    class_colors = []
     training_classes = root.find("TrainingClasses")
     if training_classes is not None:
         for item in training_classes.findall("Item"):
             class_name = item.get("Name")
             if class_name:
                 classes.append(class_name)
+                # Extract the RGB color defined for this class (0-255 per channel).
+                # Fall back to white if a color attribute is missing.
+                r = int(item.get("colR", 255))
+                g = int(item.get("colG", 255))
+                b = int(item.get("colB", 255))
+                class_colors.append((r, g, b))
 
     # Determine input/output shapes
     # Input: [height, width, channels]
@@ -201,10 +208,11 @@ def parse_czseg_xml(xml_path: Path, model_path: Optional[Path] = None) -> dict:
         "classes": classes,
         "scaling": scaling,
         "expects_bgr": expects_bgr,
+        "class_colors": class_colors,
     }
 
 
-def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[ModelMetadata, Path, bool]:
+def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[ModelMetadata, Path, bool, list]:
     """
     Extract CZSEG model file and parse metadata.
 
@@ -219,11 +227,12 @@ def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[Model
 
     Returns
     -------
-    Tuple[ModelMetadata, Path, bool]
+    Tuple[ModelMetadata, Path, bool, list]
         A tuple containing:
         - ModelMetadata: Parsed model metadata
         - Path: Path to the extracted ONNX model file
         - bool: Whether the model expects BGR-ordered input channels
+        - list: RGB colors (0-255 tuples) for each class, in class order
 
     Raises
     ------
@@ -274,4 +283,4 @@ def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[Model
         scaling=metadata_dict["scaling"],
     )
 
-    return model_metadata, model_path, metadata_dict["expects_bgr"]
+    return model_metadata, model_path, metadata_dict["expects_bgr"], metadata_dict["class_colors"]

@@ -14,6 +14,7 @@
 import numpy as np
 import napari
 from napari.layers import Image
+from napari.utils.colormaps import DirectLabelColormap
 from napari_czann_segment.process_nd import label_nd
 from napari_czann_segment.predict import predict_ndarray
 from napari_czann_segment.utils import TileMethod, SupportedWindow
@@ -173,6 +174,11 @@ class segment_with_czann(QWidget):
         self.random_object_colors: bool = True
         self.tiling_method = TileMethod.CZTILE
         self.merge_method = SupportedWindow.none
+
+        # BGR/color-handling state resolved from the model metadata
+        self._model_expects_bgr: bool = False
+        # Per-class RGB colors (0-255) from the CZSEG XML; None for non-CZSEG models
+        self._class_colors = None
 
         # create a layout
         self.setLayout(QVBoxLayout())
@@ -375,7 +381,7 @@ class segment_with_czann(QWidget):
 
             if file_extension == ".czseg":
                 self.logger.info("Detected CZSEG file format")
-                self.model_metadata, self.model_path, self._model_expects_bgr = extract_czseg_model(
+                self.model_metadata, self.model_path, self._model_expects_bgr, self._class_colors = extract_czseg_model(
                     path=self.czann_file, target_dir=Path(temp_path)
                 )
             elif file_extension in [".czann", ".czmodel"]:
@@ -384,6 +390,7 @@ class segment_with_czann(QWidget):
                     path=self.czann_file, target_dir=Path(temp_path)
                 )
                 self._model_expects_bgr = False
+                self._class_colors = None
             else:
                 self.logger.error(f"Unsupported file format: {file_extension}")
                 warnings.warn(f"Unsupported model file format: {file_extension}")
@@ -476,14 +483,32 @@ class segment_with_czann(QWidget):
                 else:
                     labels_current_class = (seg_complete == label_values[c]).astype(np.uint8)
 
+                # For CZSEG models the XML defines a color per class. When not using
+                # random object colors, color the class layer with its defined color.
+                # In random-object-colors mode the per-object random colors are kept.
+                class_colormap = None
+                if not self.random_object_colors and self._class_colors is not None and c < len(self._class_colors):
+                    r, g, b = self._class_colors[c]
+                    class_colormap = DirectLabelColormap(
+                        color_dict={
+                            None: (0.0, 0.0, 0.0, 0.0),
+                            1: (r / 255.0, g / 255.0, b / 255.0, 1.0),
+                        }
+                    )
+
                 # add new image layer
-                self.viewer.add_labels(
-                    labels_current_class,
+                add_labels_kwargs = dict(
                     name=f"{img_layer.name}_" + modeldata.classes[c],
-                    # num_colors=256,
                     scale=img_layer.scale,
                     opacity=0.7,
                     blending="translucent",
+                )
+                if class_colormap is not None:
+                    add_labels_kwargs["colormap"] = class_colormap
+
+                self.viewer.add_labels(
+                    labels_current_class,
+                    **add_labels_kwargs,
                 )
 
         if self.model_metadata.model_type == ModelType.REGRESSION:
