@@ -69,14 +69,13 @@ jobs:
                   python -m pip install --upgrade pip
                   python -m pip install setuptools tox tox-gh-actions pytest pytest-cov pytest-qt
 
-            - name: Install onnxruntime for Windows
-              if: runner.os == 'Windows'
+            # Install onnxruntime for all platforms (required by czseg_parser.py)
+            - name: Install onnxruntime
               run: python -m pip install onnxruntime
               env:
-                  # Force CPU-only mode and help with DLL loading
+                  # Force CPU-only mode
                   CUDA_VISIBLE_DEVICES: ""
                   OMP_NUM_THREADS: 1
-                  KMP_DUPLICATE_LIB_OK: TRUE
 
             - name: Set Qt environment for headless testing
               run: |
