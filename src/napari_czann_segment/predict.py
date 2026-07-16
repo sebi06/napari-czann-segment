@@ -282,6 +282,26 @@ def predict_tiles2d(
 
     if tiling_method is TileMethod.CZTILE:
 
+        # ------------------------------------------------------------------
+        # CZTILE tiling (default, mirrors how ZEN / SegmentationService tile).
+        #
+        # Each cztile ``Tile2D`` describes three related regions:
+        #   * ``tile.roi``    - the FULL tile INCLUDING its border. This is the
+        #                       region that is cut out of the image and fed to the
+        #                       model. Its size equals the model input size
+        #                       (e.g. 256 x 256).
+        #   * ``tile.center`` - the INTERIOR region this tile is responsible for.
+        #                       The center regions of all tiles tessellate the
+        #                       image EXACTLY (no overlap).
+        #   * ``tile.border`` - the per-side border widths (left/top/right/bottom)
+        #                       so that ``roi = center + border`` on every side.
+        #
+        # The border only exists to give the center enough receptive-field context
+        # for the model; it MUST be discarded after inference. We therefore feed
+        # ``tile.roi`` to the model but write back only ``tile.center`` (see below).
+        # This matches ZEN's C# pipeline (RestSegmenter + output assembler), which
+        # also predicts on the bordered tile and stores only the interior.
+        # ------------------------------------------------------------------
         tiler = AlmostEqualBorderFixedTotalAreaStrategy2D(
             width=TileInput(model_md.input_shape[0], min_border_length=min_border_width),
             height=TileInput(model_md.input_shape[1], min_border_length=min_border_width),
@@ -313,6 +333,7 @@ def predict_tiles2d(
         with tqdm(total=len(tiles), desc="Tiles (CZTILE)", unit="tile") as pbar:
             for batch_start in range(0, len(tiles), batch_sz):
                 batch_tiles = tiles[batch_start : batch_start + batch_sz]
+                # Cut the FULL bordered tile (t.roi) out of the image for inference.
                 batch_imgs = [_prep(_extract(t.roi)) for t in batch_tiles]
 
                 # DEBUG: Log first batch tile shape
@@ -327,25 +348,61 @@ def predict_tiles2d(
                 if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
                     results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
                     for t, res in zip(batch_tiles, results):
+                        # ``res`` is the prediction for the FULL bordered tile
+                        # (same H x W as t.roi). Convert the per-class probabilities
+                        # to a label map (argmax) and add 1 so labels are 1-based.
+                        labels = np.argmax(res, axis=-1) + 1
+
+                        # Crop the border away to keep only the tile's CENTER.
+                        # Inside the tile, the center starts at (border.top,
+                        # border.left) and has size (center.h, center.w). Because
+                        # roi = center + border, this offset selects exactly the
+                        # interior pixels of the prediction.
+                        cy0, cx0 = t.border.top, t.border.left
+                        center_labels = labels[cy0 : cy0 + t.center.h, cx0 : cx0 + t.center.w]
+
+                        # Write the center to its (non-overlapping) location in the
+                        # output. Since tile centers tessellate the image, no two
+                        # tiles write to the same pixel -> no border seams.
                         new_img2d[
-                            t.roi.y : t.roi.y + t.roi.h,
-                            t.roi.x : t.roi.x + t.roi.w,
-                        ] = (
-                            np.argmax(res, axis=-1) + 1
-                        )
+                            t.center.y : t.center.y + t.center.h,
+                            t.center.x : t.center.x + t.center.w,
+                        ] = center_labels
 
                 elif model_md.model_type == ModelType.REGRESSION:
                     results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
                     for t, res in zip(batch_tiles, results):
+                        # Regression output has a single channel; apply the exact
+                        # same border-crop / center-only write-back as above so the
+                        # regressed map is seam-free.
+                        cy0, cx0 = t.border.top, t.border.left
+                        center_values = res[cy0 : cy0 + t.center.h, cx0 : cx0 + t.center.w, 0]
                         new_img2d[
-                            t.roi.y : t.roi.y + t.roi.h,
-                            t.roi.x : t.roi.x + t.roi.w,
-                        ] = res[..., 0]
+                            t.center.y : t.center.y + t.center.h,
+                            t.center.x : t.center.x + t.center.w,
+                        ] = center_values
 
                 pbar.update(len(batch_tiles))
 
     if tiling_method is TileMethod.TILER:
 
+        # ------------------------------------------------------------------
+        # TILER tiling (via the third-party ``tiler`` package).
+        #
+        # Seam handling differs from CZTILE: instead of cropping each tile to a
+        # non-overlapping center, ``tiler`` keeps overlapping tiles and blends
+        # them in the ``Merger`` using a window function (``merge_window``):
+        #   * "boxcar"      - uniform weights (plain average of the overlap).
+        #   * "overlap-tile"- higher weight towards each tile center, so border
+        #                     predictions contribute less -> smooth transitions.
+        # The windowed blend is what prevents hard border seams here; there is no
+        # explicit center crop because ``Merger.merge(unpad=True)`` already removes
+        # the padding added for edge tiles.
+        #
+        # NOTE: this path currently supports single-channel (grayscale) input only.
+        # For multi-channel (e.g. BGR) images ``tiler`` raises a shape error, so
+        # color models must use the CZTILE method.
+        # ------------------------------------------------------------------
         if merge_window is SupportedWindow.overlaptile:
             merge_window_name = "overlap-tile"
         elif merge_window is SupportedWindow.none:
@@ -393,6 +450,22 @@ def predict_tiles2d(
 
     if tiling_method is TileMethod.RYOMEN:
 
+        # ------------------------------------------------------------------
+        # RYOMEN tiling (via the third-party ``ryomen`` package).
+        #
+        # ``ryomen.Slicer`` yields, for every tile, a triple ``(tile, src, dst)``:
+        #   * ``tile`` - the padded/overlapping crop fed to the model.
+        #   * ``src``  - the slice INSIDE the tile that maps to the unique output
+        #                region (i.e. the center, with the overlap removed).
+        #   * ``dst``  - the matching (non-overlapping) slice in the output image.
+        # Writing ``prediction[src] -> new_img2d[dst]`` therefore stores only each
+        # tile's center, exactly like the CZTILE border-crop above, so this method
+        # is seam-free by construction (no blending needed).
+        #
+        # NOTE: like TILER, this path currently supports single-channel input only;
+        # for multi-channel images the Slicer treats the channel axis as spatial
+        # and fails. Use CZTILE for color models.
+        # ------------------------------------------------------------------
         slices = Slicer(
             img2d,
             crop_size=(model_md.input_shape[0], model_md.input_shape[1]),
