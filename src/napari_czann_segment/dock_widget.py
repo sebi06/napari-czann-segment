@@ -375,7 +375,7 @@ class segment_with_czann(QWidget):
 
             if file_extension == ".czseg":
                 self.logger.info("Detected CZSEG file format")
-                self.model_metadata, self.model_path = extract_czseg_model(
+                self.model_metadata, self.model_path, self._model_expects_bgr = extract_czseg_model(
                     path=self.czann_file, target_dir=Path(temp_path)
                 )
             elif file_extension in [".czann", ".czmodel"]:
@@ -383,6 +383,7 @@ class segment_with_czann(QWidget):
                 self.model_metadata, self.model_path = extract_czann_model(
                     path=self.czann_file, target_dir=Path(temp_path)
                 )
+                self._model_expects_bgr = False
             else:
                 self.logger.error(f"Unsupported file format: {file_extension}")
                 warnings.warn(f"Unsupported model file format: {file_extension}")

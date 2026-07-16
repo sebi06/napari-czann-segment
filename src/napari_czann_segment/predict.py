@@ -50,7 +50,7 @@ def predict_ndarray(
     tiling_method: TileMethod = TileMethod.CZTILE,
     merge_window: SupportedWindow = SupportedWindow.none,
     batch_size: int = 8,
-    convert_rgb_to_bgr: bool = False,
+    convert_rgb_to_bgr: Optional[bool] = None,
 ) -> Tuple[Any, Union[np.ndarray, da.Array]]:
     """Run the prediction on a multidimensional numpy array
 
@@ -64,7 +64,9 @@ def predict_ndarray(
         tiling_method (TileMethod, optional): specify the desired tiling method. Defaults to TileMethod.CZITILE
         merge_window (SupportedWindow, optional): Specifies which window function to use for Tiler only. Defaults to SupportedWindow.boxcar
         batch_size (int, optional): batch size for inference (higher values improve GPU utilization). Defaults to 8.
-        convert_rgb_to_bgr (bool, optional): convert RGB image to BGR format (for models expecting BGR). Defaults to False.
+        convert_rgb_to_bgr (Optional[bool], optional): convert RGB image to BGR format (for models expecting BGR).
+            If None, auto-detect from the model metadata (ZEN color models trained on Bgr24 expect BGR while
+            czitools delivers RGB). Defaults to None.
 
     Returns:
         Tuple[Any, Union[np.ndarray, da.Array]]: Return model metadata and the segmented multidimensional array
@@ -80,14 +82,23 @@ def predict_ndarray(
         # Determine file type and use appropriate parser
         file_extension = Path(czann_file).suffix.lower()
 
+        # Whether the model was trained on BGR-ordered channels. czitools converts
+        # BGR CZI data to RGB on read, so RGB->BGR conversion is required for these
+        # models to match the training/inference pipeline of ZEN / SegmentationService.
+        model_expects_bgr = False
+
         if file_extension == ".czseg":
             logger.info("Detected CZSEG file format")
-            modelmd, model_path = extract_czseg_model(path=czann_file, target_dir=Path(temp_path))
+            modelmd, model_path, model_expects_bgr = extract_czseg_model(path=czann_file, target_dir=Path(temp_path))
         elif file_extension in [".czann", ".czmodel"]:
             logger.info(f"Detected {file_extension.upper()} file format")
             modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path))
         else:
             raise ValueError(f"Unsupported model file format: {file_extension}")
+
+        # Resolve RGB->BGR conversion from model metadata when not set explicitly.
+        if convert_rgb_to_bgr is None:
+            convert_rgb_to_bgr = model_expects_bgr
 
         if do_rescale is None:
             do_rescale = _resolve_do_rescale(getattr(modelmd, "scaling", None))
@@ -97,8 +108,8 @@ def predict_ndarray(
         # Determine if input has an explicit channel dimension at the end.
         # Expected format: [..., Y, X, C], where C matches the model input.
         # This includes plain color images shaped (Y, X, 3).
-        has_channel_dim = len(img.shape) >= 3 and img.shape[-1] == input_channels and (
-            input_channels > 1 or len(img.shape) == 3
+        has_channel_dim = (
+            len(img.shape) >= 3 and img.shape[-1] == input_channels and (input_channels > 1 or len(img.shape) == 3)
         )
 
         if has_channel_dim:

@@ -159,12 +159,22 @@ def parse_czseg_xml(xml_path: Path, model_path: Optional[Path] = None) -> dict:
     }
     channels_elem = root.find("Channels")
     num_input_channels = 1  # default (grayscale)
+    pixel_type = "Gray8"
     if channels_elem is not None:
         items = channels_elem.findall("Item")
         if items:
             pixel_type = items[0].get("PixelType", "Gray8")
             num_input_channels = _PIXEL_TYPE_CHANNELS.get(pixel_type, 1)
             logger.info(f"Parsed PixelType='{pixel_type}' → {num_input_channels} input channel(s)")
+
+    # Determine whether the model expects BGR-ordered channels.
+    # ZEN stores/trains color models on BGR pixel types (Bgr24/Bgra32).
+    # czitools converts BGR CZI data to RGB on read, so the plugin must
+    # convert RGB back to BGR before inference for these models.
+    _BGR_PIXEL_TYPES = {"Bgr24", "Bgra32"}
+    expects_bgr = pixel_type in _BGR_PIXEL_TYPES
+    if expects_bgr:
+        logger.info(f"Model expects BGR channel order (PixelType='{pixel_type}').")
 
     input_shape = [tile_height, tile_width, num_input_channels]
 
@@ -190,10 +200,11 @@ def parse_czseg_xml(xml_path: Path, model_path: Optional[Path] = None) -> dict:
         "min_overlap": min_overlap,
         "classes": classes,
         "scaling": scaling,
+        "expects_bgr": expects_bgr,
     }
 
 
-def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[ModelMetadata, Path]:
+def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[ModelMetadata, Path, bool]:
     """
     Extract CZSEG model file and parse metadata.
 
@@ -208,10 +219,11 @@ def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[Model
 
     Returns
     -------
-    Tuple[ModelMetadata, Path]
+    Tuple[ModelMetadata, Path, bool]
         A tuple containing:
         - ModelMetadata: Parsed model metadata
         - Path: Path to the extracted ONNX model file
+        - bool: Whether the model expects BGR-ordered input channels
 
     Raises
     ------
@@ -262,4 +274,4 @@ def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[Model
         scaling=metadata_dict["scaling"],
     )
 
-    return model_metadata, model_path
+    return model_metadata, model_path, metadata_dict["expects_bgr"]
