@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0] - 2026-07-16
+
+### Added
+
+- **CZSEG model support**: new `czseg_parser.py` can load ZEISS ZEN `*.czseg`
+  model files, parse their XML metadata (classes, per-class RGB colors,
+  tile/border sizes), and infer tile size from the embedded ONNX model when the
+  XML omits it. The model file picker now accepts `*.czann` and `*.czseg`.
+- Batched ONNX inference via `OnnxInferencer(batch_size=...)` for faster
+  prediction on multi-tile images.
+- Out-of-process CUDA preflight probe that verifies a usable CUDA session before
+  running inference, with automatic and safe fallback to CPU.
+- New tests covering CZSEG parsing, RGB/BGR color conversion, `predict_ndarray`
+  axis handling, and batching.
+
+### Changed
+
+- Major rewrite of `predict.py` improving tiling, axis handling, and support for
+  `xarray.DataArray` inputs.
+- `onnxruntime` is now imported defensively in `czseg_parser.py` (matching
+  `onnx_inference.py`) so a failed native DLL load on Windows CI no longer
+  crashes module import or test collection.
+- CI: `onnxruntime` is installed through the `testing` extra for all platforms
+  (Linux, macOS, Windows); redundant per-OS install steps were removed.
+- Replaced the `env_napari_czann_segment.yml` environment file with
+  `napari-env.yml`.
+
+### Fixed
+
+- BGR/RGB channel-order handling for models trained on BGR data, preventing
+  incorrect segmentation results.
+- Tiling seam/edge artifacts in stitched prediction output.
+- GPU usage and CUDA preflight robustness on machines with mismatched
+  CUDA/cuDNN libraries.
+
 ## [0.0.23] - 2026-05-17
 
 ### Fixed
