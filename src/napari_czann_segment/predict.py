@@ -13,7 +13,7 @@ import numpy as np
 import tempfile
 import itertools
 import math
-from typing import Tuple, Union, Any, List, Optional
+from typing import Tuple, Union, Any, List, Optional, cast
 import dask.array as da
 from .onnx_inference import OnnxInferencer
 from czmodel import ModelType, ModelMetadata
@@ -22,7 +22,7 @@ from cztile.fixed_total_area_strategy_2d import (
 )
 
 from cztile.tiling_strategy import Region2D, TileInput
-from tqdm import tqdm, trange
+from tqdm import tqdm
 from tiler import Tiler, Merger
 
 from czmodel.core.util._extract_model import extract_czann_model
@@ -105,21 +105,25 @@ def predict_ndarray(
 
         input_channels = modelmd.input_shape[-1]
 
+        # Concrete integer shape so downstream numpy calls type-check cleanly
+        # regardless of the backing array type (numpy / dask / xarray).
+        img_shape: Tuple[int, ...] = tuple(int(s) for s in img.shape)
+
         # Determine if input has an explicit channel dimension at the end.
         # Expected format: [..., Y, X, C], where C matches the model input.
         # This includes plain color images shaped (Y, X, 3).
         has_channel_dim = (
-            len(img.shape) >= 3 and img.shape[-1] == input_channels and (input_channels > 1 or len(img.shape) == 3)
+            len(img_shape) >= 3 and img_shape[-1] == input_channels and (input_channels > 1 or len(img_shape) == 3)
         )
 
         if has_channel_dim:
-            shape_woxy = img.shape[:-3]  # Remove Y, X, C dimensions
+            shape_woxy: Tuple[int, ...] = img_shape[:-3]  # Remove Y, X, C dimensions
             # Output shape is [..., Y, X] (no channel dimension in output - it's a label map)
-            output_shape = img.shape[:-1]  # Remove only the channel dimension
+            output_shape: Tuple[int, ...] = img_shape[:-1]  # Remove only the channel dimension
         else:
-            shape_woxy = img.shape[:-2]  # Remove Y, X dimensions
+            shape_woxy = img_shape[:-2]  # Remove Y, X dimensions
             # Output shape same as input for 2D images
-            output_shape = img.shape
+            output_shape = img_shape
 
         # seg_complete will hold the 2D segmentation/regression output
         seg_complete = np.zeros(output_shape, dtype=img.dtype)
@@ -137,9 +141,9 @@ def predict_ndarray(
         # get the used bordersize - is needed for the tiling
         if isinstance(border, str) and border == "auto":
             # we assume same bordersize in XY
-            bordersize = modelmd.min_overlap[0]
+            bordersize = modelmd.min_overlap[0] if modelmd.min_overlap is not None else 8
         else:
-            bordersize = border
+            bordersize = int(border)
 
         # create ONNX inferencer once and use it for every tile
         inf = OnnxInferencer(str(model_path), batch_size=batch_size)
@@ -153,14 +157,14 @@ def predict_ndarray(
         for idx in prod:
 
             # create list of slice-like objects based on the shape_woXY
-            sl = len(shape_woxy) * [np.s_[0:1]]
+            sl: List[Any] = len(shape_woxy) * [np.s_[0:1]]
 
             # insert the correct index into the respective slice objects for all dimensions
             for nd in range(len(shape_woxy)):
                 sl[nd] = idx[nd]
 
             # extract the 2D image from the n-dimensional stack using the list of slice objects
-            img2d = np.squeeze(img[tuple(sl)])
+            img2d = np.squeeze(cast(Any, img)[tuple(sl)])
 
             # process the whole 2d image - make sure to use the correct **kwargs
             new_img2d = predict_tiles2d(
@@ -217,11 +221,12 @@ def predict_tiles2d(
     # Handle both 2D grayscale (Y, X) and 3D color (Y, X, C) images
     if img2d.ndim == 2:
         # Grayscale image: shape is (Y, X)
-        height, width = img2d.shape
+        height, width = int(img2d.shape[0]), int(img2d.shape[1])
         channels = None
     elif img2d.ndim == 3:
         # Color/multi-channel image: shape is (Y, X, C)
-        height, width, channels = img2d.shape
+        height, width = int(img2d.shape[0]), int(img2d.shape[1])
+        channels = int(img2d.shape[2])
     else:
         raise tile_has_wrong_dimensionality(img2d.ndim)
 
@@ -237,13 +242,14 @@ def predict_tiles2d(
     logger.info(f"[predict_tiles2d] Tiling method: {tiling_method}")
     logger.info(f"[predict_tiles2d] convert_rgb_to_bgr parameter: {convert_rgb_to_bgr}")
     if convert_rgb_to_bgr:
-        logger.warning(f"[predict_tiles2d] >>> RGB to BGR CONVERSION IS ENABLED <<<")
+        logger.warning("[predict_tiles2d] >>> RGB to BGR CONVERSION IS ENABLED <<<")
 
     # ------------------------------------------------------------------
     # Helper: preprocess one extracted tile array into a float32 tensor
     # with shape (H, W, C) ready for inference.
+    # ``t`` may be a numpy or dask array (dask tiles are computed here).
     # ------------------------------------------------------------------
-    def _prep(t: np.ndarray) -> np.ndarray:
+    def _prep(t: Any) -> np.ndarray:
         if isinstance(t, da.Array):
             t = t.compute()
         if do_rescale:
@@ -270,7 +276,7 @@ def predict_tiles2d(
     # ------------------------------------------------------------------
     # Helper: extract raw tile from img2d given a cztile roi
     # ------------------------------------------------------------------
-    def _extract(roi) -> np.ndarray:
+    def _extract(roi) -> Any:
         if channels is None:
             return img2d[roi.y : roi.y + roi.h, roi.x : roi.x + roi.w]
         return img2d[roi.y : roi.y + roi.h, roi.x : roi.x + roi.w, :]
@@ -278,7 +284,7 @@ def predict_tiles2d(
     # DEBUG: Log what channels value is
     logger.info(f"[predict_tiles2d] Image has channels={channels}, so tiles will have shape (H, W, {channels})")
     if channels == 3:
-        logger.warning(f"[predict_tiles2d] Confirmed: 3-channel image detected, conversion WILL be applied if enabled")
+        logger.warning("[predict_tiles2d] Confirmed: 3-channel image detected, conversion WILL be applied if enabled")
 
     if tiling_method is TileMethod.CZTILE:
 
@@ -426,7 +432,7 @@ def predict_tiles2d(
             with tqdm(total=tiler.n_tiles, desc="Tiles (TILER)", unit="tile") as pbar:
                 for batch_start in range(0, tiler.n_tiles, batch_sz):
                     ids = list(range(batch_start, min(batch_start + batch_sz, tiler.n_tiles)))
-                    batch_imgs = [_prep(tiler.get_tile(img2d, i)) for i in ids]
+                    batch_imgs = [_prep(tiler.get_tile(cast(Any, img2d), i)) for i in ids]
                     results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
                     for tile_id, res in zip(ids, results):
                         merger.add(tile_id, np.argmax(res, axis=-1) + 1)
@@ -440,7 +446,7 @@ def predict_tiles2d(
             with tqdm(total=tiler.n_tiles, desc="Tiles (TILER)", unit="tile") as pbar:
                 for batch_start in range(0, tiler.n_tiles, batch_sz):
                     ids = list(range(batch_start, min(batch_start + batch_sz, tiler.n_tiles)))
-                    batch_imgs = [_prep(tiler.get_tile(img2d, i)) for i in ids]
+                    batch_imgs = [_prep(tiler.get_tile(cast(Any, img2d), i)) for i in ids]
                     results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
                     for tile_id, res in zip(ids, results):
                         merger.add(tile_id, res[..., 0])
@@ -467,7 +473,7 @@ def predict_tiles2d(
         # and fails. Use CZTILE for color models.
         # ------------------------------------------------------------------
         slices = Slicer(
-            img2d,
+            cast(Any, img2d),
             crop_size=(model_md.input_shape[0], model_md.input_shape[1]),
             overlap=(min_border_width, min_border_width),
             pad=True,
@@ -481,7 +487,7 @@ def predict_tiles2d(
                     batch_imgs = [_prep(t) for t, _, _ in batch]
                     results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
                     for (_, src, dst), res in zip(batch, results):
-                        new_img2d[dst] = (np.argmax(res, axis=-1) + 1)[src]
+                        new_img2d[cast(Any, dst)] = (np.argmax(res, axis=-1) + 1)[cast(Any, src)]
                     pbar.update(len(batch))
 
         elif model_md.model_type == ModelType.REGRESSION:
@@ -491,7 +497,7 @@ def predict_tiles2d(
                     batch_imgs = [_prep(t) for t, _, _ in batch]
                     results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
                     for (_, src, dst), res in zip(batch, results):
-                        new_img2d[dst] = res[..., 0][src]
+                        new_img2d[cast(Any, dst)] = res[..., 0][cast(Any, src)]
                     pbar.update(len(batch))
 
     return new_img2d
@@ -544,7 +550,7 @@ def process_semantic(
         )
 
     # get the prediction for a single tile
-    tile2d = inferencer.predict([tile2d], use_gpu=use_gpu)[0]
+    tile2d = inferencer.predict([cast(np.ndarray, tile2d)], use_gpu=use_gpu)[0]
 
     # get the labels and add 1 to reflect the real values
     tile2d = np.argmax(tile2d, axis=-1) + 1
