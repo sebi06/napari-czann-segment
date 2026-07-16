@@ -1,11 +1,16 @@
 """
 Debug script to test tiling behavior with multi-channel images.
 Run from napari-czann-segment root directory.
+
+Not a pytest test — run manually. Skipped when collected by pytest.
 """
 
 import sys
 import logging
 from pathlib import Path
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Manual diagnostic script — run directly, not via pytest")
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG, format="%(name)s - %(levelname)s - %(message)s")

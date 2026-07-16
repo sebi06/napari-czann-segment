@@ -4,11 +4,16 @@ Simple diagnostic test to check:
 1. What format the image is in when loaded by napari/czitools
 2. Whether color conversion affects inference results
 3. Which direction (if any) produces correct results
+
+Not a pytest test — run manually. Skipped when collected by pytest.
 """
 
 import numpy as np
 from pathlib import Path
 import logging
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Manual diagnostic script — run directly, not via pytest")
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)

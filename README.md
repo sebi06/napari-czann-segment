@@ -205,6 +205,18 @@ To install latest development version:
 
     pip install git+https://github.com/sebi06/napari_czann_segment.git
 
+### Running tests
+
+Run the automated test suite with:
+
+    pytest
+
+The `_tests/` directory also contains **manual diagnostic scripts** (`test_color_conversion.py`, `diagnostic_color_test.py`, `debug_tiling.py`) that perform full end-to-end inference on real CZI files and take several minutes. These are automatically **skipped** by `pytest`. To run them manually:
+
+    python src/napari_czann_segment/_tests/test_color_conversion.py
+    python src/napari_czann_segment/_tests/diagnostic_color_test.py
+    python src/napari_czann_segment/_tests/debug_tiling.py
+
 ## Contributing
 
 Contributions and Feedback are very welcome.

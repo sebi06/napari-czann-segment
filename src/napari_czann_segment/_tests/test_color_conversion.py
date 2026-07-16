@@ -3,11 +3,22 @@
 Diagnostic script to test RGB/BGR conversion issue.
 This script manually tests inference with and without color conversion
 to debug why the fix isn't working.
+
+**Not a pytest test** — this runs full end-to-end inference twice on a
+real CZI file and takes several minutes. Run manually with:
+    python -m napari_czann_segment._tests.test_color_conversion
+
+It is excluded from automatic pytest collection via the ``pytestmark``
+below.
 """
 
 import numpy as np
 from pathlib import Path
 import logging
+import pytest
+
+# Skip when collected by pytest; this is a manual diagnostic script.
+pytestmark = pytest.mark.skip(reason="Manual diagnostic script — run directly, not via pytest")
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG, format="%(name)s - %(levelname)s - %(message)s")
