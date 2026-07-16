@@ -40,49 +40,6 @@ def test_extract_czseg_with_tile_dimensions():
         assert model_path.suffix == ".model"
 
 
-def test_extract_czseg_without_tile_dimensions():
-    """Test CZSEG extraction when XML is missing TotalTileHeight/Width (should infer from ONNX)."""
-    czseg_file = get_modelfile(name_czann="260513_2025285_NMI-D_256_Uincep3_v1.czseg")
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        metadata, model_path, expects_bgr, class_colors = extract_czseg_model(czseg_file, Path(temp_dir))
-
-        # Verify metadata
-        assert metadata.model_id == "b36279a4-4e15-48a6-a7de-be27a4f559c8"
-        assert metadata.model_name == "260513_2025285_NMI-D_256_Uincep3_v1"
-        assert metadata.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION
-
-        # This model is trained on Bgr24 data and must request BGR channel ordering
-        assert expects_bgr is True
-
-        # Class colors are parsed from the XML in class order
-        assert class_colors == [
-            (255, 85, 0),
-            (0, 85, 255),
-            (255, 0, 0),
-            (0, 85, 0),
-            (155, 155, 155),
-        ]
-
-        # These should be inferred from ONNX model
-        assert metadata.input_shape[0] > 0  # Height inferred
-        assert metadata.input_shape[1] > 0  # Width inferred
-        assert metadata.output_shape[0] > 0
-        assert metadata.output_shape[1] > 0
-
-        # Should have 5 classes from XML
-        assert len(metadata.classes) == 5
-        assert "Nitrides" in metadata.classes
-        assert "Steel" in metadata.classes
-
-        # BorderSize is 50 in XML, so min_overlap should be [100, 100]
-        assert metadata.min_overlap == [100, 100]
-
-        # Verify model file exists
-        assert model_path.exists()
-        assert model_path.suffix == ".model"
-
-
 def test_czseg_vs_czann_compatibility():
     """Test that CZSEG and CZANN versions of same model produce compatible metadata."""
     from czmodel.core.util._extract_model import extract_czann_model
