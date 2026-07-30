@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-
 #################################################################
 # File        : dock_widget.py
 # Author      : sebi06, Team Enchilada
@@ -11,38 +9,40 @@
 # Remarks: Requires czmodel >= 5.0
 #################################################################
 
-import numpy as np
-import napari
-from napari.layers import Image
-from napari.utils.colormaps import DirectLabelColormap
-from napari_czann_segment.process_nd import label_nd
-from napari_czann_segment.predict import predict_ndarray
-from napari_czann_segment.utils import TileMethod, SupportedWindow
-from napari_czann_segment.onnx_inference import is_gpu_available
 import tempfile
+import warnings
 from pathlib import Path
+from typing import Dict
+
+import napari
+import numpy as np
+from czmodel import ModelType
 
 # from czmodel.pytorch.convert import DefaultConverter
 from czmodel.core.util._extract_model import extract_czann_model
-from czmodel import ModelType
-from napari_czann_segment.czseg_parser import extract_czseg_model
-from typing import Dict
+from magicgui.types import FileDialogMode
+from magicgui.widgets import CheckBox, ComboBox, FileEdit, PushButton, Slider
+from napari.layers import Image
+from napari.utils.colormaps import DirectLabelColormap
+from qtpy.QtCore import Qt
+from qtpy.QtGui import QFont
 from qtpy.QtWidgets import (
     QComboBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QVBoxLayout,
-    QWidget,
     QTableWidget,
     QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
 )
 
-from qtpy.QtCore import Qt
-from qtpy.QtGui import QFont
-from magicgui.widgets import FileEdit, Slider, CheckBox, PushButton, ComboBox
-from magicgui.types import FileDialogMode
-import warnings
+from napari_czann_segment.czseg_parser import extract_czseg_model
+from napari_czann_segment.onnx_inference import is_gpu_available
+from napari_czann_segment.predict import predict_ndarray
+from napari_czann_segment.process_nd import label_nd
+from napari_czann_segment.utils import SupportedWindow, TileMethod
+
 from .utils import setup_log
 
 
@@ -270,7 +270,7 @@ class segment_with_czann(QWidget):
             label="Batch Size",
             value=4,
             min=1,
-            max=256,
+            max=32,
             step=1,
             readout=True,
             tooltip="Tiles processed per GPU forward pass. Larger tiles or 4 GB GPUs often need 1-4; increase while GPU memory allows.",
