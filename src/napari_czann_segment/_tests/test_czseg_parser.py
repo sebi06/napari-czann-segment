@@ -17,7 +17,7 @@ def test_extract_czseg_with_tile_dimensions():
     czseg_file = get_modelfile(name_czann="PGC_20X_nucleus_detector.czseg")
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        metadata, model_path = extract_czseg_model(czseg_file, Path(temp_dir))
+        metadata, model_path, expects_bgr = extract_czseg_model(czseg_file, Path(temp_dir))
 
         # Verify metadata
         assert metadata.model_id == "cd45c952-27d0-4f0f-888a-cf560ee5728f"
@@ -29,6 +29,9 @@ def test_extract_czseg_with_tile_dimensions():
         assert metadata.classes == ["background", "nuc"]
         assert metadata.scaling is True
 
+        # Grayscale model — expects_bgr must be False
+        assert expects_bgr is False
+
         # Verify model file exists
         assert model_path.exists()
         assert model_path.suffix == ".model"
@@ -39,7 +42,7 @@ def test_extract_czseg_without_tile_dimensions():
     czseg_file = get_modelfile(name_czann="260513_2025285_NMI-D_256_Uincep3_v1.czseg")
 
     with tempfile.TemporaryDirectory() as temp_dir:
-        metadata, model_path = extract_czseg_model(czseg_file, Path(temp_dir))
+        metadata, model_path, expects_bgr = extract_czseg_model(czseg_file, Path(temp_dir))
 
         # Verify metadata
         assert metadata.model_id == "b36279a4-4e15-48a6-a7de-be27a4f559c8"
@@ -64,6 +67,9 @@ def test_extract_czseg_without_tile_dimensions():
         assert model_path.exists()
         assert model_path.suffix == ".model"
 
+        # This .czseg uses a Bgr24 PixelType — expects_bgr must be True
+        assert expects_bgr is True
+
 
 def test_czseg_vs_czann_compatibility():
     """Test that CZSEG and CZANN versions of same model produce compatible metadata."""
@@ -74,7 +80,7 @@ def test_czseg_vs_czann_compatibility():
 
     with tempfile.TemporaryDirectory() as temp_dir1:
         with tempfile.TemporaryDirectory() as temp_dir2:
-            czseg_metadata, _ = extract_czseg_model(czseg_file, Path(temp_dir1))
+            czseg_metadata, _, _ = extract_czseg_model(czseg_file, Path(temp_dir1))
             czann_metadata, _ = extract_czann_model(czann_file, Path(temp_dir2))
 
             # Key fields should match

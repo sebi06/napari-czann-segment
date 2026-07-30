@@ -82,7 +82,7 @@ def predict_ndarray(
 
         if file_extension == ".czseg":
             logger.info("Detected CZSEG file format")
-            modelmd, model_path = extract_czseg_model(path=czann_file, target_dir=Path(temp_path))
+            modelmd, model_path, _ = extract_czseg_model(path=czann_file, target_dir=Path(temp_path))
         elif file_extension in [".czann", ".czmodel"]:
             logger.info(f"Detected {file_extension.upper()} file format")
             modelmd, model_path = extract_czann_model(path=czann_file, target_dir=Path(temp_path))
@@ -97,8 +97,8 @@ def predict_ndarray(
         # Determine if input has an explicit channel dimension at the end.
         # Expected format: [..., Y, X, C], where C matches the model input.
         # This includes plain color images shaped (Y, X, 3).
-        has_channel_dim = len(img.shape) >= 3 and img.shape[-1] == input_channels and (
-            input_channels > 1 or len(img.shape) == 3
+        has_channel_dim = (
+            len(img.shape) >= 3 and img.shape[-1] == input_channels and (input_channels > 1 or len(img.shape) == 3)
         )
 
         if has_channel_dim:
@@ -115,9 +115,7 @@ def predict_ndarray(
 
         # DEBUG: Log image information
         logger.info(f"[predict_ndarray] Input image shape: {img.shape}, dtype: {img.dtype}")
-        logger.info(f"[predict_ndarray] Has channel dim: {has_channel_dim}, Output shape: {output_shape}")
-        logger.info(f"[predict_ndarray] do_rescale value: {do_rescale}")
-        logger.info(f"[predict_ndarray] convert_rgb_to_bgr parameter value: {convert_rgb_to_bgr}")
+        logger.info(f"[predict_ndarray] do_rescale={do_rescale}, convert_rgb_to_bgr={convert_rgb_to_bgr}")
 
         # create the "values" each for-loop iterates over
         loopover = [range(s) for s in shape_woxy]
@@ -134,9 +132,9 @@ def predict_ndarray(
         inf = OnnxInferencer(str(model_path), batch_size=batch_size)
 
         if convert_rgb_to_bgr:
-            logger.info("RGB to BGR conversion: ENABLED")
+            logger.info("RGB→BGR conversion: ENABLED")
         else:
-            logger.info("RGB to BGR conversion: DISABLED")
+            logger.info("RGB→BGR conversion: DISABLED")
 
         # loop over all dimensions
         for idx in prod:
@@ -221,12 +219,9 @@ def predict_tiles2d(
     batch_sz = inferencer.batch_size
 
     # DEBUG: Log tiling parameters
-    logger.info(f"[predict_tiles2d] Input image 2D shape: {img2d.shape}, dtype: {img2d.dtype}")
-    logger.info(f"[predict_tiles2d] Model expects {input_channels} channels, model input shape: {model_md.input_shape}")
-    logger.info(f"[predict_tiles2d] Tiling method: {tiling_method}")
-    logger.info(f"[predict_tiles2d] convert_rgb_to_bgr parameter: {convert_rgb_to_bgr}")
-    if convert_rgb_to_bgr:
-        logger.warning(f"[predict_tiles2d] >>> RGB to BGR CONVERSION IS ENABLED <<<")
+    logger.info(
+        f"[predict_tiles2d] shape={img2d.shape}  dtype={img2d.dtype}  tiling={tiling_method.name}  convert_rgb_to_bgr={convert_rgb_to_bgr}"
+    )
 
     # ------------------------------------------------------------------
     # Helper: preprocess one extracted tile array into a float32 tensor
@@ -247,13 +242,7 @@ def predict_tiles2d(
             )
         # Convert RGB to BGR if requested (for models trained on BGR format)
         if convert_rgb_to_bgr and t.shape[-1] == 3:
-            # Try the opposite direction first to debug
-            logger.debug(f"Before conversion: channels = {t.shape[-1]}, dtype = {t.dtype}")
-            t_orig = t.copy()
-            t = t[..., ::-1]  # Reverse channels
-            logger.debug(
-                f"After conversion: original[:, :, 0] mean={t_orig[..., 0].mean()}, converted[:, :, 0] mean={t[..., 0].mean()}"
-            )
+            t = t[..., ::-1].copy()
         return t
 
     # ------------------------------------------------------------------
@@ -265,9 +254,7 @@ def predict_tiles2d(
         return img2d[roi.y : roi.y + roi.h, roi.x : roi.x + roi.w, :]
 
     # DEBUG: Log what channels value is
-    logger.info(f"[predict_tiles2d] Image has channels={channels}, so tiles will have shape (H, W, {channels})")
-    if channels == 3:
-        logger.warning(f"[predict_tiles2d] Confirmed: 3-channel image detected, conversion WILL be applied if enabled")
+    logger.info(f"[predict_tiles2d] Image has channels={channels}")
 
     if tiling_method is TileMethod.CZTILE:
 
@@ -279,40 +266,12 @@ def predict_tiles2d(
         tiles = list(tiler.calculate_2d_tiles(region2d=region2d))
         n_batches = math.ceil(len(tiles) / batch_sz)
 
-        logger.info(f"[CZTILE] Total tiles: {len(tiles)}, Batches: {n_batches}, Batch size: {batch_sz}")
-        logger.info(
-            f"[CZTILE] Image dimensions: {height} x {width}, Model expects: {model_md.input_shape[0]} x {model_md.input_shape[1]}"
-        )
-        logger.info(f"[CZTILE] min_border_width (overlap): {min_border_width}")
-
-        # Log first few tiles to verify they make sense
-        if len(tiles) > 0:
-            logger.info(
-                f"[CZTILE] First tile ROI: x={tiles[0].roi.x}, y={tiles[0].roi.y}, w={tiles[0].roi.w}, h={tiles[0].roi.h}"
-            )
-        if len(tiles) > 1:
-            logger.info(
-                f"[CZTILE] Second tile ROI: x={tiles[1].roi.x}, y={tiles[1].roi.y}, w={tiles[1].roi.w}, h={tiles[1].roi.h}"
-            )
-        if len(tiles) > 2:
-            logger.info(
-                f"[CZTILE] Third tile ROI: x={tiles[2].roi.x}, y={tiles[2].roi.y}, w={tiles[2].roi.w}, h={tiles[2].roi.h}"
-            )
+        logger.info(f"[CZTILE] {len(tiles)} tile(s), border={min_border_width}, batch_size={batch_sz}")
 
         with tqdm(total=len(tiles), desc="Tiles (CZTILE)", unit="tile") as pbar:
             for batch_start in range(0, len(tiles), batch_sz):
                 batch_tiles = tiles[batch_start : batch_start + batch_sz]
                 batch_imgs = [_prep(_extract(t.roi)) for t in batch_tiles]
-
-                # DEBUG: Log first batch tile shape
-                if batch_start == 0:
-                    first_tile = _extract(batch_tiles[0].roi)
-                    logger.debug(f"[CZTILE] First tile extracted shape: {first_tile.shape}, dtype: {first_tile.dtype}")
-                    first_tile_prepped = _prep(first_tile)
-                    logger.debug(
-                        f"[CZTILE] First tile after _prep: {first_tile_prepped.shape}, dtype: {first_tile_prepped.dtype}"
-                    )
-
                 if model_md.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
                     results = inferencer.predict(batch_imgs, use_gpu=use_gpu)
                     for t, res in zip(batch_tiles, results):

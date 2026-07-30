@@ -171,6 +171,7 @@ class segment_with_czann(QWidget):
         self.use_gpu: bool = True
         self.batch_size: int = 4
         self.random_object_colors: bool = True
+        self.convert_rgb_to_bgr: bool = False
         self.tiling_method = TileMethod.CZTILE
         self.merge_method = SupportedWindow.none
 
@@ -284,6 +285,24 @@ class segment_with_czann(QWidget):
         self.random_object_colors_checkbox.clicked.connect(self._random_object_colors_changed)
         self.layout().addWidget(self.random_object_colors_checkbox.native)
 
+        # Checkbox: convert RGB→BGR before inference.
+        # Auto-set from PixelType metadata when a .czseg model is loaded.
+        # Must be enabled manually for .czann/.czmodel models trained on BGR input (ZEN SplitRgb).
+        self.convert_rgb_to_bgr_checkbox = CheckBox(
+            name="Convert RGB\u2192BGR (for ZEN Bgr24 models)",
+            visible=True,
+            enabled=True,
+            value=self.convert_rgb_to_bgr,
+            tooltip=(
+                "Enable when the model was trained on BGR-ordered channels (ZEN SplitRgb / Bgr24).\n"
+                "czitools always delivers color CZI images in RGB order; this flag reverses channels\n"
+                "before inference so they match the training distribution.\n"
+                "Auto-set from PixelType metadata for .czseg models."
+            ),
+        )
+        self.convert_rgb_to_bgr_checkbox.clicked.connect(self._convert_rgb_to_bgr_changed)
+        self.layout().addWidget(self.convert_rgb_to_bgr_checkbox.native)
+
         # check GPU availability and disable checkbox if not usable
         self._gpu_available = is_gpu_available()
         if self._gpu_available:
@@ -375,13 +394,22 @@ class segment_with_czann(QWidget):
 
             if file_extension == ".czseg":
                 self.logger.info("Detected CZSEG file format")
-                self.model_metadata, self.model_path = extract_czseg_model(
+                self.model_metadata, self.model_path, expects_bgr = extract_czseg_model(
                     path=self.czann_file, target_dir=Path(temp_path)
                 )
+                # Auto-set BGR flag from PixelType metadata; keep checkbox editable for override.
+                self.convert_rgb_to_bgr = expects_bgr
+                self.convert_rgb_to_bgr_checkbox.value = expects_bgr
+                self.logger.info(f"Auto-detected convert_rgb_to_bgr={expects_bgr} from .czseg PixelType metadata.")
             elif file_extension in [".czann", ".czmodel"]:
                 self.logger.info(f"Detected {file_extension.upper()} file format")
                 self.model_metadata, self.model_path = extract_czann_model(
                     path=self.czann_file, target_dir=Path(temp_path)
+                )
+                # No PixelType metadata in .czann/.czmodel — leave the checkbox at its current value.
+                self.logger.info(
+                    "convert_rgb_to_bgr not auto-detectable for .czann/.czmodel. "
+                    f"Current setting: {self.convert_rgb_to_bgr}"
                 )
             else:
                 self.logger.error(f"Unsupported file format: {file_extension}")
@@ -445,6 +473,8 @@ class segment_with_czann(QWidget):
         self.logger.info("Batch Size: " + str(self.batch_size))
         self.logger.info("Random object colors: " + str(self.random_object_colors))
 
+        self.logger.info(f"Convert RGB\u2192BGR: {self.convert_rgb_to_bgr}")
+
         if self.model_metadata.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
             modeldata, seg_complete = predict_ndarray(
@@ -456,6 +486,7 @@ class segment_with_czann(QWidget):
                 tiling_method=self.tiling_method,
                 merge_window=self.merge_method,
                 batch_size=self.batch_size,
+                convert_rgb_to_bgr=self.convert_rgb_to_bgr,
             )
 
             self.logger.info(f"Input Data Shape: {img_layer.data.shape}")
@@ -595,6 +626,11 @@ class segment_with_czann(QWidget):
         """Update whether connected objects are labelled independently."""
         self.random_object_colors = self.random_object_colors_checkbox.value
         self.logger.info(f"Random object colors: {self.random_object_colors}")
+
+    def _convert_rgb_to_bgr_changed(self):
+        """Update RGB→BGR conversion flag from the checkbox."""
+        self.convert_rgb_to_bgr = self.convert_rgb_to_bgr_checkbox.value
+        self.logger.info(f"Convert RGB\u2192BGR: {self.convert_rgb_to_bgr}")
 
     def _tiling_method_changed(self):
         """
