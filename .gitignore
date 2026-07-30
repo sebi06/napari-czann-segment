@@ -97,16 +97,16 @@ src/napari_czann_segment/experimental/**
 /_archive
 /.pytest_cache
 /src/napari_czann_segment/_data/260513_2025285_NMI-D_256_Uincep3_v1
-/src/napari_czann_segment/_data/PGC_20X_nucleus_detector
-/src/napari_czann_segment/_data/PGC_20X_nucleus_detector_from_czseg
 /src/napari_czann_segment/_data/260513_2025285_NMI-D_256_Uincep3_v1.czmodel
 /src/napari_czann_segment/_data/260513_2025285_NMI-D_256_Uincep3_v1.czseg
 /src/napari_czann_segment/_data/260513_2025285_NMI-D_256_Uincep3_v1.zip
+/src/napari_czann_segment/_data/Image 12 small-seg.czi
+/src/napari_czann_segment/_data/Image 12 small.czi
+/src/napari_czann_segment/_data/PGC_20X_nucleus_detector
+/src/napari_czann_segment/_data/PGC_20X_nucleus_detector_from_czseg
 /src/napari_czann_segment/_data/czann.json
 /src/napari_czann_segment/_data/czmodel.xml
 /src/napari_czann_segment/_data/PGC_20X_nucleus_detector_from_czseg.zip
 /src/napari_czann_segment/_data/PGC_20X_nucleus_detector.zip
-/src/napari_czann_segment/_data/Image 12 small.czi
 /docs
 /Problem Description.md
-/src/napari_czann_segment/_data/Image 12 small-seg.czi
