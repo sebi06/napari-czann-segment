@@ -13,11 +13,43 @@ from pathlib import Path
 from typing import Tuple, Optional
 import zipfile
 import tempfile
+import faulthandler as _fh
+import sys
 from czmodel import ModelMetadata, ModelType
-import onnxruntime as ort
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Handle onnxruntime import gracefully for CI environments.
+# On Windows CI (no GPU drivers), onnxruntime's native C extension may trigger
+# a non-fatal access violation while probing for CUDA DLLs.  The process
+# survives (the exception is handled internally via SEH), but Python's
+# faulthandler — enabled by default in pytest — prints a scary
+# "Windows fatal exception: access violation" traceback that causes CI to
+# report the job as failed.  We temporarily disable faulthandler during the
+# import so the benign SEH exception is silently swallowed.
+_fh_was_enabled = _fh.is_enabled()
+try:
+    if sys.platform == "win32":
+        _fh.disable()
+    import onnxruntime as ort
+
+    # Verify the module actually has the required methods
+    # (namespace packages may import successfully but be empty)
+    if not hasattr(ort, "InferenceSession"):
+        raise AttributeError("onnxruntime module is incomplete (missing required methods)")
+
+    ONNXRUNTIME_AVAILABLE = True
+except (ImportError, AttributeError) as _ort_exc:  # pragma: no cover - CI/env dependent
+    # onnxruntime may fail to load (e.g. missing/incompatible DLLs on Windows CI).
+    # Tile-size inference from ONNX will be unavailable, but CZSEG parsing for
+    # models that declare tile dimensions in their XML still works.
+    logger.warning("onnxruntime is not available: %s", _ort_exc)
+    ort = None  # type: ignore[assignment]
+    ONNXRUNTIME_AVAILABLE = False
+finally:
+    if _fh_was_enabled:
+        _fh.enable()
 
 
 def _infer_tile_size_from_onnx(model_path: Path) -> Tuple[int, int]:
@@ -39,6 +71,12 @@ def _infer_tile_size_from_onnx(model_path: Path) -> Tuple[int, int]:
     ValueError
         If the model input shape cannot be determined or is invalid.
     """
+    if not ONNXRUNTIME_AVAILABLE or ort is None:
+        raise ValueError(
+            "onnxruntime is not available; cannot infer tile size from ONNX model. "
+            "Install onnxruntime or use a CZSEG model that declares tile dimensions in its XML."
+        )
+
     try:
         # Create ONNX session to read model metadata
         session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
@@ -137,12 +175,19 @@ def parse_czseg_xml(xml_path: Path, model_path: Optional[Path] = None) -> dict:
 
     # Extract classes from TrainingClasses
     classes = []
+    class_colors = []
     training_classes = root.find("TrainingClasses")
     if training_classes is not None:
         for item in training_classes.findall("Item"):
             class_name = item.get("Name")
             if class_name:
                 classes.append(class_name)
+                # Extract the RGB color defined for this class (0-255 per channel).
+                # Fall back to white if a color attribute is missing.
+                r = int(item.get("colR", 255))
+                g = int(item.get("colG", 255))
+                b = int(item.get("colB", 255))
+                class_colors.append((r, g, b))
 
     # Determine input/output shapes
     # Input: [height, width, channels]
@@ -157,9 +202,6 @@ def parse_czseg_xml(xml_path: Path, model_path: Optional[Path] = None) -> dict:
         "Gray16": 1,
         "Gray32Float": 1,
     }
-    # BGR pixel types: model was trained on BGR-ordered channels (ZEN SplitRgb path)
-    _BGR_PIXEL_TYPES = {"Bgr24", "Bgra32"}
-
     channels_elem = root.find("Channels")
     num_input_channels = 1  # default (grayscale)
     pixel_type = "Gray8"
@@ -170,9 +212,14 @@ def parse_czseg_xml(xml_path: Path, model_path: Optional[Path] = None) -> dict:
             num_input_channels = _PIXEL_TYPE_CHANNELS.get(pixel_type, 1)
             logger.info(f"Parsed PixelType='{pixel_type}' → {num_input_channels} input channel(s)")
 
-    expects_bgr: bool = pixel_type in _BGR_PIXEL_TYPES
+    # Determine whether the model expects BGR-ordered channels.
+    # ZEN stores/trains color models on BGR pixel types (Bgr24/Bgra32).
+    # czitools converts BGR CZI data to RGB on read, so the plugin must
+    # convert RGB back to BGR before inference for these models.
+    _BGR_PIXEL_TYPES = {"Bgr24", "Bgra32"}
+    expects_bgr = pixel_type in _BGR_PIXEL_TYPES
     if expects_bgr:
-        logger.info(f"PixelType='{pixel_type}' requires BGR channel order — expects_bgr=True")
+        logger.info(f"Model expects BGR channel order (PixelType='{pixel_type}').")
 
     input_shape = [tile_height, tile_width, num_input_channels]
 
@@ -199,10 +246,11 @@ def parse_czseg_xml(xml_path: Path, model_path: Optional[Path] = None) -> dict:
         "classes": classes,
         "scaling": scaling,
         "expects_bgr": expects_bgr,
+        "class_colors": class_colors,
     }
 
 
-def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[ModelMetadata, Path]:
+def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[ModelMetadata, Path, bool, list]:
     """
     Extract CZSEG model file and parse metadata.
 
@@ -217,10 +265,12 @@ def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[Model
 
     Returns
     -------
-    Tuple[ModelMetadata, Path]
+    Tuple[ModelMetadata, Path, bool, list]
         A tuple containing:
         - ModelMetadata: Parsed model metadata
         - Path: Path to the extracted ONNX model file
+        - bool: Whether the model expects BGR-ordered input channels
+        - list: RGB colors (0-255 tuples) for each class, in class order
 
     Raises
     ------
@@ -271,5 +321,4 @@ def extract_czseg_model(path: Path | str, target_dir: Path | str) -> Tuple[Model
         scaling=metadata_dict["scaling"],
     )
 
-    expects_bgr: bool = metadata_dict["expects_bgr"]
-    return model_metadata, model_path, expects_bgr
+    return model_metadata, model_path, metadata_dict["expects_bgr"], metadata_dict["class_colors"]

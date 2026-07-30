@@ -176,6 +176,20 @@ For example, for `onnxruntime-gpu >= 1.21`, you need CUDA 12.x and cuDNN 9.x. Th
 
 **Note:** If you have PyTorch with CUDA installed, onnxruntime-gpu (>= 1.21) can automatically reuse PyTorch's CUDA/cuDNN DLLs via its `preload_dlls()` mechanism. The plugin calls this automatically at startup.
 
+### CUDA preflight check
+
+Before running GPU inference, the plugin performs a one-time **CUDA preflight** per model: it creates a CUDA ONNX session and runs a single dummy inference in a **separate subprocess**. This is intentional — some CUDA/cuDNN/cuBLAS mismatches abort the process from native code (an error Python cannot catch), so running the probe out-of-process lets napari fall back to CPU safely instead of crashing. The result is cached per model for the session.
+
+The **first** CUDA session on a machine can be slow to initialize (cuDNN/cuBLAS DLL loading, kernel JIT compilation, driver warm-up). If the preflight does not finish within its timeout, the plugin logs a warning and falls back to CPU for that session. If your GPU is healthy but simply slow to warm up, increase the timeout via an environment variable **before launching napari**:
+
+    # Windows (PowerShell) - timeout in seconds
+    $env:NAPARI_CZANN_CUDA_PREFLIGHT_TIMEOUT = "300"
+
+    # Linux / macOS
+    export NAPARI_CZANN_CUDA_PREFLIGHT_TIMEOUT=300
+
+The default is **180 seconds**.
+
 ### Troubleshooting GPU
 
 - **Only seeing `CPUExecutionProvider` after installing `[gpu]`**: You likely have both `onnxruntime` and `onnxruntime-gpu` installed (they conflict). **Solution**: Run `pip uninstall onnxruntime -y` to remove the CPU version, keeping only the GPU version.
@@ -187,6 +201,7 @@ For example, for `onnxruntime-gpu >= 1.21`, you need CUDA 12.x and cuDNN 9.x. Th
 
 - **`Failed to allocate memory for requested buffer` during a Conv node**: The GPU ran out of memory during inference. Lower the batch size in the plugin UI; the plugin also retries GPU inference with smaller batches and falls back to CPU if one tile still cannot fit.
 - **Plugin shows "GPU support is not available"**: Check the napari log output for detailed diagnostics. The plugin always falls back to CPU safely.
+- **`CUDA preflight ... timed out` warning / GPU falls back to CPU**: The one-time CUDA warm-up exceeded the preflight timeout (default 180 s). If your GPU is healthy, raise it by setting `NAPARI_CZANN_CUDA_PREFLIGHT_TIMEOUT` (seconds) before launching napari — see [CUDA preflight check](#cuda-preflight-check).
 - **CUDA version mismatch**: `onnxruntime-gpu` requires specific CUDA versions. Check the [ONNX Runtime GPU requirements](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html#requirements).
 
 ## For developers
@@ -210,6 +225,18 @@ Please run the following command:
 To install latest development version:
 
     pip install git+https://github.com/sebi06/napari_czann_segment.git
+
+### Running tests
+
+Run the automated test suite with:
+
+    pytest
+
+The `_tests/` directory also contains **manual diagnostic scripts** (`test_color_conversion.py`, `diagnostic_color_test.py`, `debug_tiling.py`) that perform full end-to-end inference on real CZI files and take several minutes. These are automatically **skipped** by `pytest`. To run them manually:
+
+    python src/napari_czann_segment/_tests/test_color_conversion.py
+    python src/napari_czann_segment/_tests/diagnostic_color_test.py
+    python src/napari_czann_segment/_tests/debug_tiling.py
 
 ## Contributing
 

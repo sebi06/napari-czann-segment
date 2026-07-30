@@ -14,6 +14,7 @@
 import numpy as np
 import napari
 from napari.layers import Image
+from napari.utils.colormaps import DirectLabelColormap
 from napari_czann_segment.process_nd import label_nd
 from napari_czann_segment.predict import predict_ndarray
 from napari_czann_segment.utils import TileMethod, SupportedWindow
@@ -171,9 +172,13 @@ class segment_with_czann(QWidget):
         self.use_gpu: bool = True
         self.batch_size: int = 4
         self.random_object_colors: bool = True
-        self.convert_rgb_to_bgr: bool = False
         self.tiling_method = TileMethod.CZTILE
         self.merge_method = SupportedWindow.none
+
+        # BGR/color-handling state resolved from the model metadata
+        self._model_expects_bgr: bool = False
+        # Per-class RGB colors (0-255) from the CZSEG XML; None for non-CZSEG models
+        self._class_colors = None
 
         # create a layout
         self.setLayout(QVBoxLayout())
@@ -285,24 +290,6 @@ class segment_with_czann(QWidget):
         self.random_object_colors_checkbox.clicked.connect(self._random_object_colors_changed)
         self.layout().addWidget(self.random_object_colors_checkbox.native)
 
-        # Checkbox: convert RGB→BGR before inference.
-        # Auto-set from PixelType metadata when a .czseg model is loaded.
-        # Must be enabled manually for .czann/.czmodel models trained on BGR input (ZEN SplitRgb).
-        self.convert_rgb_to_bgr_checkbox = CheckBox(
-            name="Convert RGB\u2192BGR (for ZEN Bgr24 models)",
-            visible=True,
-            enabled=True,
-            value=self.convert_rgb_to_bgr,
-            tooltip=(
-                "Enable when the model was trained on BGR-ordered channels (ZEN SplitRgb / Bgr24).\n"
-                "czitools always delivers color CZI images in RGB order; this flag reverses channels\n"
-                "before inference so they match the training distribution.\n"
-                "Auto-set from PixelType metadata for .czseg models."
-            ),
-        )
-        self.convert_rgb_to_bgr_checkbox.clicked.connect(self._convert_rgb_to_bgr_changed)
-        self.layout().addWidget(self.convert_rgb_to_bgr_checkbox.native)
-
         # check GPU availability and disable checkbox if not usable
         self._gpu_available = is_gpu_available()
         if self._gpu_available:
@@ -394,23 +381,16 @@ class segment_with_czann(QWidget):
 
             if file_extension == ".czseg":
                 self.logger.info("Detected CZSEG file format")
-                self.model_metadata, self.model_path, expects_bgr = extract_czseg_model(
+                self.model_metadata, self.model_path, self._model_expects_bgr, self._class_colors = extract_czseg_model(
                     path=self.czann_file, target_dir=Path(temp_path)
                 )
-                # Auto-set BGR flag from PixelType metadata; keep checkbox editable for override.
-                self.convert_rgb_to_bgr = expects_bgr
-                self.convert_rgb_to_bgr_checkbox.value = expects_bgr
-                self.logger.info(f"Auto-detected convert_rgb_to_bgr={expects_bgr} from .czseg PixelType metadata.")
             elif file_extension in [".czann", ".czmodel"]:
                 self.logger.info(f"Detected {file_extension.upper()} file format")
                 self.model_metadata, self.model_path = extract_czann_model(
                     path=self.czann_file, target_dir=Path(temp_path)
                 )
-                # No PixelType metadata in .czann/.czmodel — leave the checkbox at its current value.
-                self.logger.info(
-                    "convert_rgb_to_bgr not auto-detectable for .czann/.czmodel. "
-                    f"Current setting: {self.convert_rgb_to_bgr}"
-                )
+                self._model_expects_bgr = False
+                self._class_colors = None
             else:
                 self.logger.error(f"Unsupported file format: {file_extension}")
                 warnings.warn(f"Unsupported model file format: {file_extension}")
@@ -473,8 +453,6 @@ class segment_with_czann(QWidget):
         self.logger.info("Batch Size: " + str(self.batch_size))
         self.logger.info("Random object colors: " + str(self.random_object_colors))
 
-        self.logger.info(f"Convert RGB\u2192BGR: {self.convert_rgb_to_bgr}")
-
         if self.model_metadata.model_type == ModelType.SINGLE_CLASS_SEMANTIC_SEGMENTATION:
 
             modeldata, seg_complete = predict_ndarray(
@@ -486,7 +464,6 @@ class segment_with_czann(QWidget):
                 tiling_method=self.tiling_method,
                 merge_window=self.merge_method,
                 batch_size=self.batch_size,
-                convert_rgb_to_bgr=self.convert_rgb_to_bgr,
             )
 
             self.logger.info(f"Input Data Shape: {img_layer.data.shape}")
@@ -506,14 +483,32 @@ class segment_with_czann(QWidget):
                 else:
                     labels_current_class = (seg_complete == label_values[c]).astype(np.uint8)
 
+                # For CZSEG models the XML defines a color per class. When not using
+                # random object colors, color the class layer with its defined color.
+                # In random-object-colors mode the per-object random colors are kept.
+                class_colormap = None
+                if not self.random_object_colors and self._class_colors is not None and c < len(self._class_colors):
+                    r, g, b = self._class_colors[c]
+                    class_colormap = DirectLabelColormap(
+                        color_dict={
+                            None: (0.0, 0.0, 0.0, 0.0),
+                            1: (r / 255.0, g / 255.0, b / 255.0, 1.0),
+                        }
+                    )
+
                 # add new image layer
-                self.viewer.add_labels(
-                    labels_current_class,
+                add_labels_kwargs = dict(
                     name=f"{img_layer.name}_" + modeldata.classes[c],
-                    # num_colors=256,
                     scale=img_layer.scale,
                     opacity=0.7,
                     blending="translucent",
+                )
+                if class_colormap is not None:
+                    add_labels_kwargs["colormap"] = class_colormap
+
+                self.viewer.add_labels(
+                    labels_current_class,
+                    **add_labels_kwargs,
                 )
 
         if self.model_metadata.model_type == ModelType.REGRESSION:
@@ -626,11 +621,6 @@ class segment_with_czann(QWidget):
         """Update whether connected objects are labelled independently."""
         self.random_object_colors = self.random_object_colors_checkbox.value
         self.logger.info(f"Random object colors: {self.random_object_colors}")
-
-    def _convert_rgb_to_bgr_changed(self):
-        """Update RGB→BGR conversion flag from the checkbox."""
-        self.convert_rgb_to_bgr = self.convert_rgb_to_bgr_checkbox.value
-        self.logger.info(f"Convert RGB\u2192BGR: {self.convert_rgb_to_bgr}")
 
     def _tiling_method_changed(self):
         """

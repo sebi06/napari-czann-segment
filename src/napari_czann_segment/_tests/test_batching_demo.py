@@ -7,15 +7,20 @@ from pathlib import Path
 
 import numpy as np
 from czmodel.core.util._extract_model import extract_czann_model
+import pytest
 
 # Add src to path
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
 from napari_czann_segment.get_testdata import get_modelfile
-from napari_czann_segment.onnx_inference import OnnxInferencer
+from napari_czann_segment.onnx_inference import OnnxInferencer, ONNXRUNTIME_AVAILABLE
 
 
+@pytest.mark.skipif(
+    not ONNXRUNTIME_AVAILABLE,
+    reason="onnxruntime not available (e.g. Windows CI access violation)",
+)
 def test_batching():
     """Test that batching is working correctly."""
 
@@ -38,8 +43,7 @@ def test_batching():
         # Create 8 random test images (to test batching: 8 = 2 batches of 4)
         num_images = 8
         test_images = [
-            np.random.rand(input_shape[1], input_shape[2], input_shape[3]).astype(np.float32)
-            for _ in range(num_images)
+            np.random.rand(input_shape[1], input_shape[2], input_shape[3]).astype(np.float32) for _ in range(num_images)
         ]
         print(f"✓ Created {num_images} test images")
 

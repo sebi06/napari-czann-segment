@@ -11,6 +11,7 @@
 
 from typing import Tuple, Optional, List, cast, Union, Dict, Any
 from types import TracebackType
+import faulthandler as _fh
 import logging
 import os
 import subprocess
@@ -26,6 +27,17 @@ _CUDA_PROVIDER_OPTIONS = {
     # EfficientNet-like convolution blocks even when the input tile is small.
     "cudnn_conv_use_max_workspace": "0",
 }
+
+# Timeout (seconds) for the out-of-process CUDA preflight probe. The FIRST CUDA
+# session on a machine can be slow to initialize (cuDNN/cuBLAS DLL loading, JIT
+# kernel compilation, driver warm-up), easily exceeding a few tens of seconds.
+# A too-short timeout makes the probe fail and forces CPU inference for the whole
+# session. Default generously and allow overriding via an environment variable.
+try:
+    _CUDA_PREFLIGHT_TIMEOUT_SECONDS = float(os.environ.get("NAPARI_CZANN_CUDA_PREFLIGHT_TIMEOUT", "180"))
+except ValueError:
+    _CUDA_PREFLIGHT_TIMEOUT_SECONDS = 180.0
+
 
 # Ensure conda environment CUDA libraries are on the DLL search path (Windows).
 # Conda may place CUDA DLLs in <env>/bin or <env>/Library/bin which are not
@@ -64,8 +76,6 @@ if sys.platform == "win32":
 # "Windows fatal exception: access violation" traceback that causes CI to
 # report the job as failed.  We temporarily disable faulthandler during the
 # import so the benign SEH exception is silently swallowed.
-import faulthandler as _fh
-
 _fh_was_enabled = _fh.is_enabled()
 try:
     if sys.platform == "win32":
@@ -96,6 +106,10 @@ except (ImportError, AttributeError):
         @staticmethod
         def InferenceSession(*args, **kwargs):
             raise ImportError("onnxruntime not available in CI environment")
+
+        @staticmethod
+        def get_available_providers():
+            return []
 
     rt = MockOnnxRuntime()
     ONNXRUNTIME_AVAILABLE = False
@@ -199,9 +213,22 @@ sess.run([sess.get_outputs()[0].name], {input_info.name: dummy})
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=30,
+            timeout=_CUDA_PREFLIGHT_TIMEOUT_SECONDS,
             env=env,
         )
+    except subprocess.TimeoutExpired as e:
+        logger.warning(
+            "CUDA preflight did not finish within %.0f s and was aborted; "
+            "falling back to CPU. The first CUDA session can be slow to "
+            "initialize (cuDNN/cuBLAS load, kernel JIT). If your GPU is "
+            "healthy, increase the timeout via the "
+            "NAPARI_CZANN_CUDA_PREFLIGHT_TIMEOUT environment variable "
+            "(seconds). Details: %s",
+            _CUDA_PREFLIGHT_TIMEOUT_SECONDS,
+            e,
+        )
+        _CUDA_SESSION_USABLE_CACHE[model_path] = False
+        return False
     except Exception as e:
         logger.warning("CUDA preflight failed before inference: %s. Falling back to CPU.", e)
         _CUDA_SESSION_USABLE_CACHE[model_path] = False
@@ -427,13 +454,17 @@ class OnnxInferencer:
 
                 next_batch_size = max(1, gpu_batch_size // 2)
                 logger.warning(
-                    "GPU inference failed with batch size %s: %s. "
-                    "Retrying with batch size %s.",
+                    "GPU inference failed with batch size %s: %s. " "Retrying with batch size %s.",
                     gpu_batch_size,
                     e,
                     next_batch_size,
                 )
                 gpu_batch_size = next_batch_size
+
+        # The loop above always returns (GPU success, or CPU fallback at batch
+        # size 1). This final return is unreachable but satisfies type checkers
+        # that require a return value on every code path.
+        return _predict_batch(x, use_gpu=False, batch_size=1)
 
     def get_input_shape(self) -> Tuple[int, int, int, int]:
         """Determines the input shape expected by the loaded model.
