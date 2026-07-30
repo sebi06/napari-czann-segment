@@ -77,6 +77,7 @@ In order to use this plugin the user has to do the following things:
 - Adjust the **minimum overlap** for the tiling (optional, see [cztile] for details).
 - Select the **layer** to be segmented.
 - Toggle **Use GPU for inference** checkbox to enable / disable using a GPU (Nvidia) for the segmentation (experimental feature).
+- Toggle **Convert RGB→BGR** if the model was trained on BGR-ordered channels — see [RGB vs. BGR channel order](#rgb-vs-bgr-channel-order) below.
 - Press **Segment Selected Image Layer** to run the segmentation.
 
 ![Napari - Image successfully segmented](https://github.com/sebi06/napari-czann-segment/raw/main/readme_images/napari_czann3.png)
@@ -88,8 +89,28 @@ Another example is shown below demonstrating a simple "Grain Size Analysis" usin
 
 ### Remarks
 
-> **IMPORTANT**: Currently the plugin only supports using models trained on a **single channel** image. Therefore, make sure that during the training on [APEER] or somewhere else the correct inputs images are used.
-> It is quite simple to train a single RGB image, which actually has three channels, load this image in [napari] and notice only then that the model will not work, because the image will 3 channels inside [napari].
+> **IMPORTANT**: Currently the plugin only supports using models trained on a **single channel** image (grayscale) or a **3-channel color** image (RGB / BGR). Multi-channel fluorescence images with more than 3 channels are not supported. Make sure that during training on [APEER] or elsewhere the correct input images are used.
+> It is quite simple to accidentally train a single RGB image (3 channels) and notice only later that the model will not work as expected inside [napari].
+
+### RGB vs. BGR channel order
+
+[napari] always loads and stores color images in **RGB** order (red-green-blue). However, models trained using ZEN's *SplitRgb* pipeline or saved with the `Bgr24` / `Bgra32` pixel type expect channels in **BGR** order (blue-green-red). Running such a model without channel reordering will produce incorrect or degraded segmentation results.
+
+The plugin handles this with the **Convert RGB→BGR** checkbox:
+
+| Model / file type                               | Behavior                                                                                     |
+| :---------------------------------------------- | :------------------------------------------------------------------------------------------- |
+| `.czseg` with `Bgr24` or `Bgra32` pixel type    | Auto-detected — checkbox is set automatically                                                |
+| `.czseg` with `Rgb24` / `Gray8` / `Gray16` etc. | Auto-detected — no conversion needed                                                         |
+| `.czann` / `.czmodel`                           | Auto-detection not possible — toggle checkbox manually if the model was trained on BGR input |
+
+**When do you need it?**
+
+- The model was trained inside ZEN (ZEN SplitRgb path) → enable the checkbox.
+- The model was trained on standard RGB images (e.g. APEER, own Jupyter notebook) → leave the checkbox off.
+- The input image is grayscale (single channel) → the checkbox has no effect.
+
+The checkbox can always be toggled manually to override the auto-detected value.
 
 ## CPU vs. GPU Inference
 
