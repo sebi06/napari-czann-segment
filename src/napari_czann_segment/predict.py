@@ -9,29 +9,30 @@
 #
 #################################################################
 
-import numpy as np
-import tempfile
 import itertools
 import math
-from typing import Tuple, Union, Any, List, Optional, cast
+import tempfile
+import time
+from pathlib import Path
+from typing import Any, List, Optional, Tuple, Union, cast
+
 import dask.array as da
-from .onnx_inference import OnnxInferencer
-from czmodel import ModelType, ModelMetadata
+import numpy as np
+import xarray as xr
+from czmodel import ModelMetadata, ModelType
+from czmodel.core.util._extract_model import extract_czann_model
 from cztile.fixed_total_area_strategy_2d import (
     AlmostEqualBorderFixedTotalAreaStrategy2D,
 )
-
 from cztile.tiling_strategy import Region2D, TileInput
-from tqdm import tqdm
-from tiler import Tiler, Merger
-
-from czmodel.core.util._extract_model import extract_czann_model
-from napari_czann_segment.czseg_parser import extract_czseg_model
-from pathlib import Path
-from .utils import TileMethod, SupportedWindow
 from ryomen import Slicer
-from .utils import setup_log
-import xarray as xr
+from tiler import Merger, Tiler
+from tqdm import tqdm
+
+from napari_czann_segment.czseg_parser import extract_czseg_model
+
+from .onnx_inference import OnnxInferencer
+from .utils import SupportedWindow, TileMethod, setup_log
 
 logger = setup_log("Napari-CZANN-predict")
 
@@ -336,6 +337,7 @@ def predict_tiles2d(
                 f"[CZTILE] Third tile ROI: x={tiles[2].roi.x}, y={tiles[2].roi.y}, w={tiles[2].roi.w}, h={tiles[2].roi.h}"
             )
 
+        t_inference_start = time.perf_counter()
         with tqdm(total=len(tiles), desc="Tiles (CZTILE)", unit="tile") as pbar:
             for batch_start in range(0, len(tiles), batch_sz):
                 batch_tiles = tiles[batch_start : batch_start + batch_sz]
@@ -389,6 +391,8 @@ def predict_tiles2d(
                         ] = center_values
 
                 pbar.update(len(batch_tiles))
+        t_inference_elapsed = time.perf_counter() - t_inference_start
+        logger.info(f"[CZTILE] Inference completed in {t_inference_elapsed:.2f}s ({len(tiles)} tiles)")
 
     if tiling_method is TileMethod.TILER:
 
