@@ -140,8 +140,8 @@ def predict_ndarray(
 
         # get the used bordersize - is needed for the tiling
         if isinstance(border, str) and border == "auto":
-            # we assume same bordersize in XY
-            bordersize = modelmd.min_overlap[0] if modelmd.min_overlap is not None else 8
+            # min_overlap is total overlap; cztile needs per-side border
+            bordersize = modelmd.min_overlap[0] // 2 if modelmd.min_overlap is not None else 8
         else:
             bordersize = int(border)
 

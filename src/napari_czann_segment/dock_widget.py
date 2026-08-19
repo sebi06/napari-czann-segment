@@ -458,7 +458,7 @@ class segment_with_czann(QWidget):
             modeldata, seg_complete = predict_ndarray(
                 self.czann_file,
                 img_layer.data,
-                border=self.min_overlap_ui,
+                border=self.min_overlap_ui // 2,
                 use_gpu=self.use_gpu,
                 do_rescale=_resolve_do_rescale(getattr(self.model_metadata, "scaling", None)),
                 tiling_method=self.tiling_method,
@@ -516,7 +516,7 @@ class segment_with_czann(QWidget):
             modeldata, processed_image = predict_ndarray(
                 self.czann_file,
                 img_layer.data,
-                border=self.min_overlap_ui,
+                border=self.min_overlap_ui // 2,
                 use_gpu=self.use_gpu,
                 do_rescale=False,
                 merge_window=self.merge_method,
