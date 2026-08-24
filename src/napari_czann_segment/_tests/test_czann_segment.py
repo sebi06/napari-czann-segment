@@ -152,9 +152,9 @@ def test_ndarray_prediction_seg(
     assert bioio_img.shape == (1, 1, 1, 2755, 3675)
 
     # Test the physical pixel sizes using the correct API
-    assert bioio_img.physical_pixel_sizes.X == 0.227  # X
-    assert bioio_img.physical_pixel_sizes.Y == 0.227  # Y
-    assert bioio_img.physical_pixel_sizes.Z == 1.0  # Z
+    assert bioio_img.physical_pixel_sizes.X == pytest.approx(0.227)  # X
+    assert bioio_img.physical_pixel_sizes.Y == pytest.approx(0.227)  # Y
+    assert bioio_img.physical_pixel_sizes.Z == pytest.approx(1.0)  # Z
 
     # read the image data as numpy or dask array
     img = bioio_img.get_image_data()
