@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import tempfile
+import warnings
 from pathlib import Path
 from unittest.mock import patch
 
@@ -15,7 +16,6 @@ from napari_czann_segment.onnx_inference import (
     OnnxInferencer,
     is_gpu_available,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -82,9 +82,15 @@ class TestManagedOnnxSession:
             ("CUDAExecutionProvider", {"device_id": "999"}),
             "CPUExecutionProvider",
         ]
-        with ManagedOnnxSession(seg_model_path, providers=bad_providers) as sess:
-            # Should have fallen back to CPU without raising
-            assert sess is not None
+        # Suppress the expected onnxruntime warning about invalid provider.
+        # The warning "Specified provider 'CUDAExecutionProvider' is not in
+        # available provider names" is expected when intentionally passing a
+        # bad provider config to test fallback logic.
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", message=".*CUDAExecutionProvider.*")
+            with ManagedOnnxSession(seg_model_path, providers=bad_providers) as sess:
+                # Should have fallen back to CPU without raising
+                assert sess is not None
 
     def test_raises_when_onnxruntime_unavailable(self, seg_model_path):
         with patch("napari_czann_segment.onnx_inference.ONNXRUNTIME_AVAILABLE", False):
