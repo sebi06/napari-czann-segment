@@ -446,6 +446,20 @@ class segment_with_czann(QWidget):
         # grab the layer using the combo box item text as the layer name
         img_layer = self.viewer.layers[self.image_layer_combo.currentText()]
 
+        # Extract full-resolution data from multiscale layers
+        # If the layer is multiscale (from napari-czitools 0.12.1+),
+        # img_layer.data is a list [finest, ..., coarsest].
+        # We must use level 0 (finest resolution) for accurate inference.
+        if isinstance(img_layer.data, list):
+            # Multiscale layer: extract finest resolution (level 0)
+            img_data = img_layer.data[0]
+            self.logger.info("Multiscale layer detected. Using finest resolution level.")
+            self.logger.info(f"Full resolution shape: {img_data.shape}")
+        else:
+            # Single-scale layer: use data as-is
+            img_data = img_layer.data
+            self.logger.info(f"Single-scale layer. Shape: {img_data.shape}")
+
         self.logger.info("CZANN Modelfile: " + self.czann_file)
         self.logger.info("CZANN ModelType: " + str(self.model_metadata.model_type))
         self.logger.info("Minimum Tile Overlap: " + str(self.min_overlap_ui))
@@ -457,7 +471,7 @@ class segment_with_czann(QWidget):
 
             modeldata, seg_complete = predict_ndarray(
                 self.czann_file,
-                img_layer.data,
+                img_data,
                 border=self.min_overlap_ui // 2,
                 use_gpu=self.use_gpu,
                 do_rescale=_resolve_do_rescale(getattr(self.model_metadata, "scaling", None)),
@@ -466,7 +480,7 @@ class segment_with_czann(QWidget):
                 batch_size=self.batch_size,
             )
 
-            self.logger.info(f"Input Data Shape: {img_layer.data.shape}")
+            self.logger.info(f"Input Data Shape: {img_data.shape}")
             self.logger.info(f"Output Data Shape: {seg_complete.shape}")
 
             # create a list of label values
@@ -515,7 +529,7 @@ class segment_with_czann(QWidget):
 
             modeldata, processed_image = predict_ndarray(
                 self.czann_file,
-                img_layer.data,
+                img_data,
                 border=self.min_overlap_ui // 2,
                 use_gpu=self.use_gpu,
                 do_rescale=False,
@@ -523,7 +537,7 @@ class segment_with_czann(QWidget):
                 batch_size=self.batch_size,
             )
 
-            self.logger.info(f"Input Data Shape: {img_layer.data.shape}")
+            self.logger.info(f"Input Data Shape: {img_data.shape}")
             self.logger.info(f"Output Data Shape: {processed_image.shape}")
 
             # add new image layer

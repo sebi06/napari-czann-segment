@@ -150,3 +150,31 @@ def setup_log(name, create_logfile=False):
         logger.addHandler(log_handler)
 
     return logger
+
+
+def get_full_resolution_data(img_layer):
+    """
+    Extract full-resolution data from a napari Image layer.
+
+    When napari-czitools 0.12.1+ loads a CZI file as multiscale, img_layer.data
+    is a list [finest, ..., coarsest]. This helper extracts the finest resolution.
+    For single-scale layers (napari-czitools < 0.12.0), returns data as-is.
+
+    Parameters
+    ----------
+    img_layer : napari.layers.Image
+        A napari Image layer, either single-scale or multiscale.
+
+    Returns
+    -------
+    ndarray or xarray.DataArray
+        The full-resolution pixel data. If multiscale, returns the finest level
+        (index 0). If single-scale, returns img_layer.data unchanged.
+    """
+    if isinstance(img_layer.data, list):
+        # Multiscale layer: extract finest resolution (level 0)
+        return img_layer.data[0]
+    else:
+        # Single-scale layer: return as-is
+        return img_layer.data
+

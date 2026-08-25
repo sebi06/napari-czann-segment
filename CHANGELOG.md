@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2025-01-XX
+
+### Fixed
+
+- **Multiscale image compatibility**: Fixed critical issue where napari-czann-segment
+  would receive downsampled/coarse-resolution data when loading CZI files with
+  napari-czitools 0.12.1+. The plugin now correctly extracts full-resolution data
+  (finest pyramid level) from multiscale image layers before inference, ensuring
+  accurate segmentation results. This fix is fully backward compatible with
+  single-scale images and older napari-czitools versions.
+- Updated documentation (COMPATIBILITY_ANALYSIS.md, COMPATIBILITY_STATUS.md,
+  IMPLEMENTATION_GUIDE.md) to reflect the resolution of the multiscale compatibility
+  issue.
+
+### Changed
+
+- `dock_widget.py::_segment()` method now detects and handles both single-scale
+  and multiscale image layers transparently.
+- Enhanced logging to report whether single-scale or multiscale layers are being
+  processed, including full-resolution data shape information.
+
+### Added
+
+- New utility function `get_full_resolution_data()` in `utils.py` for extracting
+  full-resolution data from napari Image layers (useful for plugins and integrations).
+
 ## [0.1.0] - 2026-07-16
 
 ### Added
