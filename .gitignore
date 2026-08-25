@@ -110,3 +110,6 @@ src/napari_czann_segment/experimental/**
 /src/napari_czann_segment/_data/PGC_20X_nucleus_detector.zip
 /docs
 /Problem Description.md
+
+# Claude AI configuration and cache
+.claude/
