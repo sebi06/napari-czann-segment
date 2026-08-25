@@ -177,4 +177,3 @@ def get_full_resolution_data(img_layer):
     else:
         # Single-scale layer: return as-is
         return img_layer.data
-

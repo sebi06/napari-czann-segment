@@ -29,6 +29,20 @@ You can then install `napari-czann-segment` via [pip]. **You must choose either 
 
 See [CPU vs. GPU Inference](#cpu-vs-gpu-inference) for detailed GPU setup instructions.
 
+## Compatibility
+
+### napari-czitools 0.12.1+
+
+**Fixed (v0.1.1+):** The plugin now fully supports napari-czitools 0.12.1 and later, which introduced multiscale pyramid rendering for CZI files. In v0.1.1, we fixed a critical issue where the plugin would receive downsampled/coarse-resolution image data instead of full-resolution data for inference.
+
+**What changed:**
+
+- The plugin now correctly extracts full-resolution data (finest pyramid level) from multiscale image layers
+- Segmentation results are now accurate when using CZI files with multiscale display pyramids
+- The fix is fully backward compatible with single-scale images and older napari-czitools versions
+
+**For users:** Simply update to napari-czann-segment v0.1.1 or later. No changes to your workflow are needed. See [COMPATIBILITY_STATUS.md](docs/COMPATIBILITY_STATUS.md) for technical details.
+
 ## What does the plugin do
 
 The plugin allows you to:
