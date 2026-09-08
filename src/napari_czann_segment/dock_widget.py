@@ -41,7 +41,11 @@ from napari_czann_segment.czseg_parser import extract_czseg_model
 from napari_czann_segment.onnx_inference import is_gpu_available
 from napari_czann_segment.predict import predict_ndarray
 from napari_czann_segment.process_nd import label_nd
-from napari_czann_segment.utils import SupportedWindow, TileMethod
+from napari_czann_segment.utils import (
+    SupportedWindow,
+    TileMethod,
+    get_full_resolution_data,
+)
 
 from .utils import setup_log
 
@@ -446,18 +450,11 @@ class segment_with_czann(QWidget):
         # grab the layer using the combo box item text as the layer name
         img_layer = self.viewer.layers[self.image_layer_combo.currentText()]
 
-        # Extract full-resolution data from multiscale layers
-        # If the layer is multiscale (from napari-czitools 0.12.1+),
-        # img_layer.data is a list [finest, ..., coarsest].
-        # We must use level 0 (finest resolution) for accurate inference.
-        if isinstance(img_layer.data, list):
-            # Multiscale layer: extract finest resolution (level 0)
-            img_data = img_layer.data[0]
+        img_data = get_full_resolution_data(img_layer)
+        if img_layer.multiscale:
             self.logger.info("Multiscale layer detected. Using finest resolution level.")
             self.logger.info(f"Full resolution shape: {img_data.shape}")
         else:
-            # Single-scale layer: use data as-is
-            img_data = img_layer.data
             self.logger.info(f"Single-scale layer. Shape: {img_data.shape}")
 
         self.logger.info("CZANN Modelfile: " + self.czann_file)

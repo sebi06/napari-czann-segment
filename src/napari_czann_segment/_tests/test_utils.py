@@ -2,7 +2,11 @@
 
 import os
 import tempfile
+
+import numpy as np
 import pytest
+from napari.layers import Image
+
 from napari_czann_segment.utils import (
     file_not_found,
     check_file,
@@ -11,6 +15,7 @@ from napari_czann_segment.utils import (
     get_rectangle_from_image,
     TileMethod,
     SupportedWindow,
+    get_full_resolution_data,
     setup_log,
 )
 
@@ -105,3 +110,13 @@ class TestSetupLog:
         log = setup_log("file_logger", create_logfile=True)
         logfile = tmp_path / "test_file_logger.log"
         assert logfile.exists()
+
+
+def test_get_full_resolution_data_from_multiscale_image():
+    full_resolution = np.zeros((8, 8), dtype=np.uint16)
+    low_resolution = np.zeros((4, 4), dtype=np.uint16)
+    image = Image([full_resolution, low_resolution], multiscale=True)
+
+    result = get_full_resolution_data(image)
+
+    assert result is image.data[0]
